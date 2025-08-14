@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Horarios - Restaurante</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: #f9fafb;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 18px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="loading">Cargando Sistema de Horarios...</div>
+    </div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        const RestaurantScheduleManager = () => {
+          const [workers, setWorkers] = useState([]);
+          const [schedule, setSchedule] = useState([]);
+          const [showAddWorker, setShowAddWorker] = useState(false);
+          const [editingWorker, setEditingWorker] = useState(null);
+          const [scheduleConfig, setScheduleConfig] = useState({
+            openingWorkers: 2,
+            closingWorkers: 2
+          });
+
+          const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+          const RESTAURANT_OPEN = 12;
+          const RESTAURANT_CLOSE = 22;
+          const SHIFT_CHANGE = 17; // 5:00 PM - cambio de turno
+
+          const [newWorker, setNewWorker] = useState({
+            name: '',
+            contractType: 'full',
+            dayOff: 'Lunes',
+            multipleDaysOff: []
+          });
+
+          const [showRandomAssignment, setShowRandomAssignment] = useState(false);
+          const [randomDaysConfig, setRandomDaysConfig] = useState({
+            selectedDays: [],
+            applyToAll: false
+          });
+
+          useEffect(() => {
+            if (workers.length > 0) {
+              generateSchedule();
+            }
+          }, [workers, scheduleConfig]);
+
+          const addWorker = () => {
+            if (newWorker.name.trim()) {
+              const worker = {
+                id: Date.now(),
+                name: newWorker.name,
+                contractType: newWorker.contractType,
+                dayOff: newWorker.dayOff,
+                multipleDaysOff: newWorker.multipleDaysOff || []
+              };
+              setWorkers([...workers, worker]);
+              setNewWorker({ name: '', contractType: 'full', dayOff: 'Lunes', multipleDaysOff: [] });
+              setShowAddWorker(false);
+            }
+          };
+
+          const editWorker = (id) => {
+            const worker = workers.find(w => w.id === id);
+            setEditingWorker(worker);
+            setNewWorker({ 
+              name: worker.name,
+              contractType: worker.contractType,
+              dayOff: worker.dayOff,
+              multipleDaysOff: worker.multipleDaysOff || []
+            });
+            setShowAddWorker(true);
+          };
+
+          const updateWorker = () => {
+            setWorkers(workers.map(w => w.id === editingWorker.id ? { 
+              ...newWorker, 
+              id: editingWorker.id,
+              multipleDaysOff: newWorker.multipleDaysOff || []
+            } : w));
+            setEditingWorker(null);
+            setNewWorker({ name: '', contractType: 'full', dayOff: 'Lunes', multipleDaysOff: [] });
+            setShowAddWorker(false);
+          };
+
+          const assignRandomDaysOff = () => {
+            if (randomDaysConfig.selectedDays.length === 0) {
+              alert('Selecciona al menos un día para la asignación aleatoria.');
+              return;
+            }
+
+            // Filtrar trabajadores que necesitan día libre asignado
+            const workersToAssign = workers.filter(worker => 
+              randomDaysConfig.applyToAll || !worker.dayOff
+            );
+
+            if (workersToAssign.length > randomDaysConfig.selectedDays.length) {
+              alert(`No hay suficientes días seleccionados. Tienes ${workersToAssign.length} trabajadores que necesitan día libre, pero solo ${randomDaysConfig.selectedDays.length} día(s) seleccionado(s). Selecciona más días o reduce el número de trabajadores.`);
+              return;
+            }
+
+            // Crear una copia de los días disponibles para asignación
+            let availableDays = [...randomDaysConfig.selectedDays];
+            
+            const updatedWorkers = workers.map(worker => {
+              if (randomDaysConfig.applyToAll || !worker.dayOff) {
+                if (availableDays.length === 0) {
+                  // Si se acaban los días, reiniciar la lista (por si hay más trabajadores que días)
+                  availableDays = [...randomDaysConfig.selectedDays];
+                }
+                
+                // Seleccionar un día aleatorio y removerlo de la lista
+                const randomIndex = Math.floor(Math.random() * availableDays.length);
+                const randomDay = availableDays[randomIndex];
+                availableDays.splice(randomIndex, 1);
+                
+                return { ...worker, dayOff: randomDay };
+              }
+              return worker;
+            });
+
+            setWorkers(updatedWorkers);
+            setShowRandomAssignment(false);
+            setRandomDaysConfig({ selectedDays: [], applyToAll: false });
+
+            // Mostrar mensaje de éxito
+            alert(`¡Días libres asignados exitosamente! Se distribuyeron ${workersToAssign.length} trabajadores sin repetir días.`);
+          };
+
+          const toggleRandomDay = (day) => {
+            const currentDays = randomDaysConfig.selectedDays;
+            if (currentDays.includes(day)) {
+              setRandomDaysConfig({
+                ...randomDaysConfig,
+                selectedDays: currentDays.filter(d => d !== day)
+              });
+            } else {
+              setRandomDaysConfig({
+                ...randomDaysConfig,
+                selectedDays: [...currentDays, day]
+              });
+            }
+          };
+
+          const toggleWorkerDayOff = (day) => {
+            const currentDays = newWorker.multipleDaysOff || [];
+            if (currentDays.includes(day)) {
+              setNewWorker({
+                ...newWorker,
+                multipleDaysOff: currentDays.filter(d => d !== day)
+              });
+            } else {
+              setNewWorker({
+                ...newWorker,
+                multipleDaysOff: [...currentDays, day]
+              });
+            }
+          };
+
+          const deleteWorker = (id) => {
+            setWorkers(workers.filter(w => w.id !== id));
+          };
+
+          const generateSchedule = () => {
+            const newSchedule = [];
+            
+            days.forEach(day => {
+              const availableWorkers = workers.filter(worker => worker.dayOff !== day);
+              
+              if (availableWorkers.length === 0) return;
+
+              const fullTimeWorkers = availableWorkers.filter(w => w.contractType === 'full');
+              const partTimeWorkers = availableWorkers.filter(w => w.contractType === 'part');
+
+              const dayShifts = [];
+              let assignedFullTime = 0;
+              let assignedPartTimeOpening = 0;
+              let assignedPartTimeClosing = 0;
+
+              // Prioridad 1: Asignar trabajadores de tiempo completo hasta el límite configurado
+              fullTimeWorkers.forEach((worker) => {
+                if (assignedFullTime < Math.max(scheduleConfig.openingWorkers, scheduleConfig.closingWorkers)) {
+                  dayShifts.push({
+                    day,
+                    workerId: worker.id,
+                    workerName: worker.name,
+                    startTime: RESTAURANT_OPEN,
+                    endTime: RESTAURANT_CLOSE,
+                    contractType: 'Tiempo Completo',
+                    dayOff: worker.dayOff
+                  });
+                  assignedFullTime++;
+                }
+              });
+
+              // Prioridad 2: Completar turno de apertura con trabajadores de medio tiempo
+              const neededOpening = scheduleConfig.openingWorkers - assignedFullTime;
+              partTimeWorkers.forEach((worker, index) => {
+                if (assignedPartTimeOpening < neededOpening) {
+                  dayShifts.push({
+                    day,
+                    workerId: worker.id,
+                    workerName: worker.name,
+                    startTime: RESTAURANT_OPEN,
+                    endTime: SHIFT_CHANGE,
+                    contractType: 'Medio Tiempo - Apertura',
+                    dayOff: worker.dayOff
+                  });
+                  assignedPartTimeOpening++;
+                }
+              });
+
+              // Prioridad 3: Completar turno de cierre con trabajadores de medio tiempo restantes
+              const neededClosing = scheduleConfig.closingWorkers - assignedFullTime;
+              const remainingPartTime = partTimeWorkers.slice(assignedPartTimeOpening);
+              
+              remainingPartTime.forEach((worker) => {
+                if (assignedPartTimeClosing < neededClosing) {
+                  dayShifts.push({
+                    day,
+                    workerId: worker.id,
+                    workerName: worker.name,
+                    startTime: SHIFT_CHANGE,
+                    endTime: RESTAURANT_CLOSE,
+                    contractType: 'Medio Tiempo - Cierre',
+                    dayOff: worker.dayOff
+                  });
+                  assignedPartTimeClosing++;
+                }
+              });
+
+              newSchedule.push(...dayShifts);
+            });
+
+            setSchedule(newSchedule);
+          };
+
+          const formatTime = (hour) => {
+            return `${hour}:00`;
+          };
+
+          const getScheduleForDay = (day) => {
+            return schedule.filter(shift => shift.day === day).sort((a, b) => a.startTime - b.startTime);
+          };
+
+          const exportToExcel = () => {
+            if (schedule.length === 0) {
+              alert('No hay horarios para exportar. Agrega trabajadores primero.');
+              return;
+            }
+
+            // Crear datos para Excel
+            const excelData = [];
+            
+            // Agregar encabezados
+            excelData.push([
+              'Día',
+              'Trabajador',
+              'Hora Inicio',
+              'Hora Fin',
+              'Tipo de Contrato',
+              'Día de Descanso',
+              'Horas Trabajadas'
+            ]);
+
+            // Agregar datos del horario
+            days.forEach(day => {
+              const dayShifts = getScheduleForDay(day);
+              if (dayShifts.length === 0) {
+                excelData.push([day, 'Sin trabajadores asignados', '', '', '', '', '']);
+              } else {
+                dayShifts.forEach((shift, index) => {
+                  const hoursWorked = shift.endTime - shift.startTime;
+                  excelData.push([
+                    index === 0 ? day : '', // Solo mostrar el día en la primera fila
+                    shift.workerName,
+                    formatTime(shift.startTime),
+                    formatTime(shift.endTime),
+                    shift.contractType,
+                    shift.dayOff,
+                    `${hoursWorked} horas`
+                  ]);
+                });
+              }
+            });
+
+            // Agregar resumen al final
+            excelData.push(['']); // Fila vacía
+            excelData.push(['RESUMEN DE TRABAJADORES']);
+            excelData.push(['Nombre', 'Tipo de Contrato', 'Día de Descanso', 'Horas por Día']);
+            
+            workers.forEach(worker => {
+              const hoursPerDay = worker.contractType === 'full' ? 10 : 5;
+              excelData.push([
+                worker.name,
+                worker.contractType === 'full' ? 'Tiempo Completo' : 'Medio Tiempo',
+                worker.dayOff,
+                `${hoursPerDay} horas`
+              ]);
+            });
+
+            // Crear el libro de Excel
+            const ws = XLSX.utils.aoa_to_sheet(excelData);
+            const wb = XLSX.utils.book_new();
+            
+            // Configurar ancho de columnas
+            ws['!cols'] = [
+              { width: 12 }, // Día
+              { width: 20 }, // Trabajador
+              { width: 12 }, // Hora Inicio
+              { width: 12 }, // Hora Fin
+              { width: 18 }, // Tipo de Contrato
+              { width: 16 }, // Día de Descanso
+              { width: 15 }  // Horas Trabajadas
+            ];
+
+            // Agregar la hoja al libro
+            XLSX.utils.book_append_sheet(wb, ws, "Horario Semanal");
+
+            // Generar nombre del archivo con fecha actual
+            const today = new Date();
+            const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+            const fileName = `Horario_Restaurante_${dateStr}.xlsx`;
+
+            // Descargar el archivo
+            XLSX.writeFile(wb, fileName);
+          };
+
+          return React.createElement('div', { className: "max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen" },
+            React.createElement('div', { className: "bg-white rounded-lg shadow-lg p-6 mb-6" },
+              React.createElement('div', { className: "flex items-center gap-3 mb-6" },
+                React.createElement('div', { className: "text-blue-600 text-3xl" }, "📅"),
+                React.createElement('h1', { className: "text-3xl font-bold text-gray-800" }, "Sistema de Gestión de Horarios")
+              ),
+
+              // Configuración
+              React.createElement('div', { className: "grid md:grid-cols-2 gap-6 mb-8" },
+                React.createElement('div', { className: "bg-blue-50 p-4 rounded-lg" },
+                  React.createElement('h3', { className: "font-semibold text-blue-800 mb-3 flex items-center gap-2" },
+                    React.createElement('span', null, "🕐"),
+                    "Configuración de Turnos",
+                    React.createElement('span', { className: "text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full ml-2" }, "Auto-actualiza")
+                  ),
+                  React.createElement('div', { className: "space-y-3" },
+                    React.createElement('div', null,
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" },
+                        "Personal mínimo en apertura (12:00 PM - 5:00 PM)"
+                      ),
+                      React.createElement('input', {
+                        type: "number",
+                        min: "1",
+                        value: scheduleConfig.openingWorkers,
+                        onChange: (e) => {
+                          const newConfig = {...scheduleConfig, openingWorkers: parseInt(e.target.value)};
+                          setScheduleConfig(newConfig);
+                          // Regenerar horario automáticamente cuando cambie la configuración
+                          if (workers.length > 0) {
+                            setTimeout(() => generateSchedule(), 100);
+                          }
+                        },
+                        className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      })
+                    ),
+                    React.createElement('div', null,
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" },
+                        "Personal mínimo hasta cierre (5:00 PM - 10:00 PM)"
+                      ),
+                      React.createElement('input', {
+                        type: "number",
+                        min: "1",
+                        value: scheduleConfig.closingWorkers,
+                        onChange: (e) => {
+                          const newConfig = {...scheduleConfig, closingWorkers: parseInt(e.target.value)};
+                          setScheduleConfig(newConfig);
+                          // Regenerar horario automáticamente cuando cambie la configuración
+                          if (workers.length > 0) {
+                            setTimeout(() => generateSchedule(), 100);
+                          }
+                        },
+                        className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      })
+                    )
+                  )
+                ),
+
+                React.createElement('div', { className: "bg-green-50 p-4 rounded-lg" },
+                  React.createElement('h3', { className: "font-semibold text-green-800 mb-3 flex items-center gap-2" },
+                    React.createElement('span', null, "👥"),
+                    "Información del Restaurante"
+                  ),
+                  React.createElement('div', { className: "space-y-2 text-sm text-gray-700" },
+                    React.createElement('p', null,
+                      React.createElement('strong', null, "Horario: "),
+                      "Lunes a Domingo, 12:00 PM - 10:00 PM"
+                    ),
+                    React.createElement('p', null,
+                      React.createElement('strong', null, "Tiempo Completo: "),
+                      "10 horas por día (12:00 PM - 10:00 PM)"
+                    ),
+                    React.createElement('p', null,
+                      React.createElement('strong', null, "Medio Tiempo Apertura: "),
+                      "5 horas (12:00 PM - 5:00 PM)"
+                    ),
+                    React.createElement('p', null,
+                      React.createElement('strong', null, "Medio Tiempo Cierre: "),
+                      "5 horas (5:00 PM - 10:00 PM)"
+                    ),
+                    React.createElement('p', null,
+                      React.createElement('strong', null, "Configuración Actual: "),
+                      `${scheduleConfig.openingWorkers} personas en apertura, ${scheduleConfig.closingWorkers} personas hasta cierre`
+                    ),
+                    React.createElement('p', null,
+                      React.createElement('strong', null, "Descanso: "),
+                      "1 día por semana por trabajador"
+                    )
+                  )
+                )
+              ),
+
+              // Trabajadores
+              React.createElement('div', { className: "mb-8" },
+                React.createElement('div', { className: "flex justify-between items-center mb-4" },
+                  React.createElement('h2', { className: "text-xl font-semibold text-gray-800" }, "Trabajadores"),
+                  React.createElement('div', { className: "flex gap-2" },
+                    React.createElement('button', {
+                      onClick: () => setShowRandomAssignment(true),
+                      className: "bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "🎲"),
+                      "Días Aleatorios"
+                    ),
+                    React.createElement('button', {
+                      onClick: () => setShowAddWorker(true),
+                      className: "bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "➕"),
+                      "Agregar Trabajador"
+                    )
+                  )
+                ),
+
+                workers.length === 0 ? 
+                  React.createElement('div', { className: "text-center py-8 text-gray-500" },
+                    "No hay trabajadores registrados. Agrega el primer trabajador para comenzar."
+                  ) :
+                  React.createElement('div', { className: "grid md:grid-cols-2 lg:grid-cols-3 gap-4" },
+                    workers.map(worker => 
+                      React.createElement('div', { key: worker.id, className: "bg-white border border-gray-200 rounded-lg p-4" },
+                        React.createElement('div', { className: "flex justify-between items-start mb-2" },
+                          React.createElement('h3', { className: "font-semibold text-gray-800" }, worker.name),
+                          React.createElement('div', { className: "flex gap-2" },
+                            React.createElement('button', {
+                              onClick: () => editWorker(worker.id),
+                              className: "text-blue-600 hover:text-blue-800"
+                            }, "✏️"),
+                            React.createElement('button', {
+                              onClick: () => deleteWorker(worker.id),
+                              className: "text-red-600 hover:text-red-800"
+                            }, "🗑️")
+                          )
+                        ),
+                        React.createElement('p', { className: "text-sm text-gray-600" },
+                          React.createElement('strong', null, "Contrato: "),
+                          worker.contractType === 'full' ? 'Tiempo Completo' : 'Medio Tiempo'
+                        ),
+                        React.createElement('p', { className: "text-sm text-gray-600" },
+                          React.createElement('strong', null, "Día(s) libre: "),
+                          worker.multipleDaysOff && worker.multipleDaysOff.length > 0 
+                            ? worker.multipleDaysOff.join(', ')
+                            : worker.dayOff
+                        )
+                      )
+                    )
+                  )
+              ),
+
+              // Modal para agregar/editar trabajador
+              showAddWorker && React.createElement('div', { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" },
+                React.createElement('div', { className: "bg-white rounded-lg p-6 w-full max-w-md" },
+                  React.createElement('h3', { className: "text-lg font-semibold mb-4" },
+                    editingWorker ? 'Editar Trabajador' : 'Agregar Nuevo Trabajador'
+                  ),
+                  
+                  React.createElement('div', { className: "space-y-4" },
+                    React.createElement('div', null,
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, "Nombre"),
+                      React.createElement('input', {
+                        type: "text",
+                        value: newWorker.name,
+                        onChange: (e) => setNewWorker({...newWorker, name: e.target.value}),
+                        className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        placeholder: "Nombre del trabajador"
+                      })
+                    ),
+
+                    React.createElement('div', null,
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, "Tipo de Contrato"),
+                      React.createElement('select', {
+                        value: newWorker.contractType,
+                        onChange: (e) => setNewWorker({...newWorker, contractType: e.target.value}),
+                        className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      },
+                        React.createElement('option', { value: "full" }, "Tiempo Completo (10 horas)"),
+                        React.createElement('option', { value: "part" }, "Medio Tiempo (5 horas)")
+                      )
+                    ),
+
+                    React.createElement('div', null,
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, "Día Libre Principal"),
+                      React.createElement('select', {
+                        value: newWorker.dayOff,
+                        onChange: (e) => setNewWorker({...newWorker, dayOff: e.target.value}),
+                        className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      },
+                        days.map(day => 
+                          React.createElement('option', { key: day, value: day }, day)
+                        )
+                      )
+                    ),
+
+                    React.createElement('div', null,
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, "Días Libres Adicionales (Opcional)"),
+                      React.createElement('div', { className: "grid grid-cols-2 gap-2" },
+                        days.filter(day => day !== newWorker.dayOff).map(day =>
+                          React.createElement('label', { 
+                            key: day, 
+                            className: "flex items-center space-x-2 cursor-pointer p-2 border rounded-md hover:bg-gray-50" +
+                              (newWorker.multipleDaysOff?.includes(day) ? " bg-blue-50 border-blue-300" : "")
+                          },
+                            React.createElement('input', {
+                              type: "checkbox",
+                              checked: newWorker.multipleDaysOff?.includes(day) || false,
+                              onChange: () => toggleWorkerDayOff(day),
+                              className: "rounded"
+                            }),
+                            React.createElement('span', { className: "text-sm" }, day)
+                          )
+                        )
+                      ),
+                      React.createElement('p', { className: "text-xs text-gray-500 mt-1" },
+                        "Selecciona días adicionales de descanso si es necesario"
+                      )
+                    )
+                  ),
+
+                  React.createElement('div', { className: "flex gap-3 mt-6" },
+                    React.createElement('button', {
+                      onClick: () => {
+                        setShowAddWorker(false);
+                        setEditingWorker(null);
+                        setNewWorker({ name: '', contractType: 'full', dayOff: 'Lunes' });
+                      },
+                      className: "flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                    }, "Cancelar"),
+                    React.createElement('button', {
+                      onClick: editingWorker ? updateWorker : addWorker,
+                      className: "flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                    }, editingWorker ? 'Actualizar' : 'Agregar')
+                  )
+                )
+              ),
+
+              // Modal para asignación aleatoria de días libres
+              showRandomAssignment && React.createElement('div', { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" },
+                React.createElement('div', { className: "bg-white rounded-lg p-6 w-full max-w-md" },
+                  React.createElement('div', { className: "flex items-center gap-2 mb-4" },
+                    React.createElement('span', { className: "text-2xl" }, "🎲"),
+                    React.createElement('h3', { className: "text-lg font-semibold" }, "Asignación Aleatoria de Días Libres")
+                  ),
+                  
+                  React.createElement('div', { className: "space-y-4" },
+                    React.createElement('div', null,
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 
+                        "Selecciona los días para la asignación aleatoria:"
+                      ),
+                      React.createElement('div', { className: "grid grid-cols-2 gap-2" },
+                        days.map(day =>
+                          React.createElement('label', { 
+                            key: day, 
+                            className: "flex items-center space-x-2 cursor-pointer p-3 border rounded-md hover:bg-gray-50 transition-colors" +
+                              (randomDaysConfig.selectedDays.includes(day) ? " bg-purple-50 border-purple-300" : "")
+                          },
+                            React.createElement('input', {
+                              type: "checkbox",
+                              checked: randomDaysConfig.selectedDays.includes(day),
+                              onChange: () => toggleRandomDay(day),
+                              className: "rounded text-purple-600"
+                            }),
+                            React.createElement('span', { className: "text-sm font-medium" }, day)
+                          )
+                        )
+                      ),
+                      React.createElement('p', { className: "text-xs text-gray-500 mt-2" },
+                        `${randomDaysConfig.selectedDays.length} día(s) seleccionado(s)`
+                      )
+                    ),
+
+                    React.createElement('div', { className: "border-t pt-4" },
+                      React.createElement('label', { className: "flex items-center space-x-3 cursor-pointer p-3 border rounded-md hover:bg-gray-50" },
+                        React.createElement('input', {
+                          type: "checkbox",
+                          checked: randomDaysConfig.applyToAll,
+                          onChange: (e) => setRandomDaysConfig({
+                            ...randomDaysConfig,
+                            applyToAll: e.target.checked
+                          }),
+                          className: "rounded text-purple-600"
+                        }),
+                        React.createElement('div', null,
+                          React.createElement('div', { className: "font-medium" }, "Aplicar a todos los trabajadores"),
+                          React.createElement('div', { className: "text-sm text-gray-500" }, 
+                            "Si no está marcado, solo se aplicará a trabajadores sin día libre asignado"
+                          )
+                        )
+                      )
+                    ),
+
+                    React.createElement('div', { className: "bg-purple-50 p-3 rounded-md" },
+                      React.createElement('p', { className: "text-sm text-purple-800 mb-2" },
+                        React.createElement('strong', null, "Cómo funciona: "),
+                        "El sistema asignará aleatoriamente uno de los días seleccionados como día libre para cada trabajador."
+                      ),
+                      React.createElement('p', { className: "text-sm text-purple-700" },
+                        React.createElement('strong', null, "⚠️ Importante: "),
+                        "Cada día seleccionado se asignará a un solo trabajador (sin repeticiones). Asegúrate de seleccionar suficientes días para todos los trabajadores."
+                      )
+                    )
+                  ),
+
+                  React.createElement('div', { className: "flex gap-3 mt-6" },
+                    React.createElement('button', {
+                      onClick: () => {
+                        setShowRandomAssignment(false);
+                        setRandomDaysConfig({ selectedDays: [], applyToAll: false });
+                      },
+                      className: "flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                    }, "Cancelar"),
+                    React.createElement('button', {
+                      onClick: assignRandomDaysOff,
+                      disabled: randomDaysConfig.selectedDays.length === 0,
+                      className: "flex-1 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    }, "Asignar Aleatoriamente")
+                  )
+                )
+              ),
+
+              // Horario Semanal
+              workers.length > 0 && React.createElement('div', { className: "mt-8" },
+                React.createElement('div', { className: "flex justify-between items-center mb-4" },
+                  React.createElement('h2', { className: "text-xl font-semibold text-gray-800" }, "Horario Semanal"),
+                  React.createElement('div', { className: "flex gap-3" },
+                    React.createElement('button', {
+                      onClick: exportToExcel,
+                      className: "bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "📊"),
+                      "Exportar a Excel"
+                    ),
+                    React.createElement('button', {
+                      onClick: generateSchedule,
+                      className: "bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "🔄"),
+                      "Regenerar Horario"
+                    ),
+                    React.createElement('div', { className: "text-sm text-gray-600 flex items-center gap-1" },
+                      React.createElement('span', null, "ℹ️"),
+                      "Los horarios se actualizan automáticamente al cambiar la configuración"
+                    )
+                  )
+                ),
+
+                React.createElement('div', { className: "grid gap-6" },
+                  days.map(day => {
+                    const dayShifts = getScheduleForDay(day);
+                    return React.createElement('div', { key: day, className: "bg-white border border-gray-200 rounded-lg overflow-hidden" },
+                      React.createElement('div', { className: "bg-gray-100 px-4 py-3" },
+                        React.createElement('h3', { className: "font-semibold text-gray-800" }, day)
+                      ),
+                      React.createElement('div', { className: "p-4" },
+                        dayShifts.length === 0 ? 
+                          React.createElement('p', { className: "text-gray-500 italic" }, "No hay trabajadores asignados") :
+                          React.createElement('div', { className: "space-y-3" },
+                            dayShifts.map((shift, index) =>
+                              React.createElement('div', { key: index, className: "flex items-center justify-between p-3 bg-gray-50 rounded-md" },
+                                React.createElement('div', { className: "flex items-center gap-4" },
+                                  React.createElement('div', { className: "font-medium text-gray-800" }, shift.workerName),
+                                  React.createElement('div', { className: "text-sm text-gray-600" },
+                                    `${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}`
+                                  )
+                                ),
+                                React.createElement('div', { className: "text-right" },
+                                  React.createElement('div', { className: "text-sm font-medium text-blue-600" }, shift.contractType),
+                                  React.createElement('div', { className: "text-xs text-gray-500" },
+                                    `Descanso: ${shift.dayOff}`
+                                  )
+                                )
+                              )
+                            )
+                          )
+                      )
+                    );
+                  })
+                )
+              )
+            )
+          );
+        };
+
+        // Renderizar la aplicación
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(RestaurantScheduleManager));
+    </script>
+</body>
+</html>
