@@ -9,6 +9,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jsPDF para exportar a PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -39,21 +41,98 @@
           const [schedule, setSchedule] = useState([]);
           const [showAddWorker, setShowAddWorker] = useState(false);
           const [editingWorker, setEditingWorker] = useState(null);
-          const [scheduleConfig, setScheduleConfig] = useState({
-            openingWorkers: 2,
-            closingWorkers: 2
-          });
 
           const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-          const RESTAURANT_OPEN = 12;
-          const RESTAURANT_CLOSE = 22;
-          const SHIFT_CHANGE = 17; // 5:00 PM - cambio de turno
+          // --- NUEVO: Horarios personalizados por día ---
+          const [customHours, setCustomHours] = useState({
+            'Lunes': { open: 12, close: 22 },
+            'Martes': { open: 12, close: 22 },
+            'Miércoles': { open: 12, close: 22 },
+            'Jueves': { open: 12, close: 22 },
+            'Viernes': { open: 12, close: 22 },
+            'Sábado': { open: 12, close: 22 },
+            'Domingo': { open: 12, close: 22 }
+          });
+          const updateCustomHours = (day, type, value) => {
+            setCustomHours(prev => ({
+              ...prev,
+              [day]: {
+                ...prev[day],
+                [type]: parseInt(value, 10) || 0
+              }
+            }));
+          };
+          // --- FIN NUEVO ---
+
+          // --- NUEVO: Historial de horarios ---
+          const [history, setHistory] = useState([]);
+          const [showHistory, setShowHistory] = useState(false);
+          const [showNotificationModal, setShowNotificationModal] = useState(false);
+          const [showRoleManager, setShowRoleManager] = useState(false);
+          const saveCurrentSchedule = () => {
+            if (schedule.length === 0) {
+              alert('No hay horario para guardar.');
+              return;
+            }
+            setHistory([
+              ...history,
+              {
+                date: new Date().toLocaleString(),
+                workers: JSON.parse(JSON.stringify(workers)),
+                schedule: JSON.parse(JSON.stringify(schedule))
+              }
+            ]);
+            alert('Horario guardado en el historial.');
+          };
+          const restoreSchedule = (item) => {
+            setWorkers(item.workers);
+            setSchedule(item.schedule);
+            setShowHistory(false);
+          };
+          // --- FIN NUEVO ---
+
+          // --- NUEVO: Vista calendario ---
+          const [calendarView, setCalendarView] = useState(false);
+          // --- FIN NUEVO ---
+
+          const [dayTypes, setDayTypes] = useState({
+            'Lunes': 'bajo',
+            'Martes': 'bajo',
+            'Miércoles': 'bajo',
+            'Jueves': 'bajo',
+            'Viernes': 'alto',
+            'Sábado': 'alto',
+            'Domingo': 'bajo'
+          });
+
+          const [manualStaffConfig, setManualStaffConfig] = useState({
+            'Lunes': { opening: 5, closing: 5 },
+            'Martes': { opening: 5, closing: 5 },
+            'Miércoles': { opening: 5, closing: 5 },
+            'Jueves': { opening: 5, closing: 5 },
+            'Viernes': { opening: 5, closing: 7 },
+            'Sábado': { opening: 5, closing: 7 },
+            'Domingo': { opening: 5, closing: 5 }
+          });
+
+          const [roleCodes, setRoleCodes] = useState({
+            'C1': { code: 'C1', name: 'Caja 1', color: '#9CA3AF' },
+            'AF1': { code: 'AF1', name: 'Anfitrión 1', color: '#EF4444' },
+            'AF2': { code: 'AF2', name: 'Anfitrión 2', color: '#06B6D4' },
+            'AF3': { code: 'AF3', name: 'Anfitrión 3', color: '#EAB308' },
+            'AF4': { code: 'AF4', name: 'Anfitrión 4', color: '#3B82F6' },
+            'AF5': { code: 'AF5', name: 'Anfitrión 5', color: '#F97316' },
+            'AF6': { code: 'AF6', name: 'Anfitrión 6', color: '#1D4ED8' }
+          });
 
           const [newWorker, setNewWorker] = useState({
             name: '',
             contractType: 'full',
             dayOff: 'Lunes',
-            multipleDaysOff: []
+            multipleDaysOff: [],
+            roleCode: 'C1',
+            dailyRoles: {},
+            phone: ''
           });
 
           const [showRandomAssignment, setShowRandomAssignment] = useState(false);
@@ -61,12 +140,15 @@
             selectedDays: [],
             applyToAll: false
           });
+          const [showManualHoursModal, setShowManualHoursModal] = useState(false);
+          const [manualHours, setManualHours] = useState({});
+          const [showStaffConfigModal, setShowStaffConfigModal] = useState(false);
 
           useEffect(() => {
             if (workers.length > 0) {
               generateSchedule();
             }
-          }, [workers, scheduleConfig]);
+          }, [workers, dayTypes, manualHours, manualStaffConfig, customHours]);
 
           const addWorker = () => {
             if (newWorker.name.trim()) {
@@ -75,10 +157,13 @@
                 name: newWorker.name,
                 contractType: newWorker.contractType,
                 dayOff: newWorker.dayOff,
-                multipleDaysOff: newWorker.multipleDaysOff || []
+                multipleDaysOff: newWorker.multipleDaysOff || [],
+                roleCode: newWorker.roleCode,
+                roleName: roleCodes[newWorker.roleCode].name,
+                color: roleCodes[newWorker.roleCode].color
               };
               setWorkers([...workers, worker]);
-              setNewWorker({ name: '', contractType: 'full', dayOff: 'Lunes', multipleDaysOff: [] });
+              setNewWorker({ name: '', contractType: 'full', dayOff: 'Lunes', multipleDaysOff: [], roleCode: 'C1', dailyRoles: {}, phone: '' });
               setShowAddWorker(false);
             }
           };
@@ -86,24 +171,86 @@
           const editWorker = (id) => {
             const worker = workers.find(w => w.id === id);
             setEditingWorker(worker);
-            setNewWorker({ 
+            setNewWorker({
               name: worker.name,
               contractType: worker.contractType,
               dayOff: worker.dayOff,
-              multipleDaysOff: worker.multipleDaysOff || []
+              multipleDaysOff: worker.multipleDaysOff || [],
+              roleCode: worker.roleCode || 'C1',
+              dailyRoles: worker.dailyRoles || {},
+              phone: worker.phone || ''
             });
             setShowAddWorker(true);
           };
 
           const updateWorker = () => {
-            setWorkers(workers.map(w => w.id === editingWorker.id ? { 
+            setWorkers(workers.map(w => w.id === editingWorker.id ? {
               ...newWorker, 
               id: editingWorker.id,
-              multipleDaysOff: newWorker.multipleDaysOff || []
+              multipleDaysOff: newWorker.multipleDaysOff || [],
+              roleName: roleCodes[newWorker.roleCode].name,
+              color: roleCodes[newWorker.roleCode].color
             } : w));
             setEditingWorker(null);
-            setNewWorker({ name: '', contractType: 'full', dayOff: 'Lunes', multipleDaysOff: [] });
+            setNewWorker({ name: '', contractType: 'full', dayOff: 'Lunes', multipleDaysOff: [], roleCode: 'C1', dailyRoles: {}, phone: '' });
             setShowAddWorker(false);
+          };
+
+          const [roleFormData, setRoleFormData] = useState({ isEditing: false, code: '', name: '', color: '#808080' });
+
+          const handleRoleSubmit = (e) => {
+            e.preventDefault();
+            if (roleFormData.isEditing) {
+                const { code, name, color } = roleFormData;
+                setRoleCodes(prev => ({
+                    ...prev,
+                    [code]: { ...prev[code], name, color }
+                }));
+            } else {
+                const { code, name, color } = roleFormData;
+                if (!code.trim()) {
+                    alert('El código del rol no puede estar vacío.');
+                    return;
+                }
+                if (roleCodes[code]) {
+                    alert('El código del rol ya existe.');
+                    return;
+                }
+                setRoleCodes(prev => ({
+                    ...prev,
+                    [code.toUpperCase()]: { code: code.toUpperCase(), name, color }
+                }));
+            }
+            setRoleFormData({ isEditing: false, code: '', name: '', color: '#808080' });
+          };
+
+          const handleEditRole = (role) => {
+            setRoleFormData({
+                isEditing: true,
+                code: role.code,
+                name: role.name,
+                color: role.color
+            });
+          };
+
+          const handleDeleteRole = (roleCode) => {
+            const isRoleInUse = workers.some(w => 
+                w.roleCode === roleCode || 
+                (w.dailyRoles && Object.values(w.dailyRoles).includes(roleCode))
+            );
+
+            if (isRoleInUse) {
+                alert(`No se puede eliminar el rol "${roleCode}" porque está asignado a uno o más trabajadores.`);
+                return;
+            }
+
+            if (confirm(`¿Estás seguro de que quieres eliminar el rol "${roleCode}"?`)) {
+                setRoleCodes(prev => {
+                    const newRoles = { ...prev };
+                    delete newRoles[roleCode];
+                    return newRoles;
+                });
+            }
           };
 
           const assignRandomDaysOff = () => {
@@ -112,7 +259,6 @@
               return;
             }
 
-            // Filtrar trabajadores que necesitan día libre asignado
             const workersToAssign = workers.filter(worker => 
               randomDaysConfig.applyToAll || !worker.dayOff
             );
@@ -122,17 +268,14 @@
               return;
             }
 
-            // Crear una copia de los días disponibles para asignación
             let availableDays = [...randomDaysConfig.selectedDays];
             
             const updatedWorkers = workers.map(worker => {
               if (randomDaysConfig.applyToAll || !worker.dayOff) {
                 if (availableDays.length === 0) {
-                  // Si se acaban los días, reiniciar la lista (por si hay más trabajadores que días)
                   availableDays = [...randomDaysConfig.selectedDays];
                 }
                 
-                // Seleccionar un día aleatorio y removerlo de la lista
                 const randomIndex = Math.floor(Math.random() * availableDays.length);
                 const randomDay = availableDays[randomIndex];
                 availableDays.splice(randomIndex, 1);
@@ -146,8 +289,96 @@
             setShowRandomAssignment(false);
             setRandomDaysConfig({ selectedDays: [], applyToAll: false });
 
-            // Mostrar mensaje de éxito
             alert(`¡Días libres asignados exitosamente! Se distribuyeron ${workersToAssign.length} trabajadores sin repetir días.`);
+          };
+
+          const assignRandomRoles = () => {
+            const cashierRoles = ['C1', 'C2'].filter(r => roleCodes[r]);
+            if (cashierRoles.length === 0) {
+              alert('Error: No se encontraron roles de cajero (C1 o C2) en la configuración.');
+              return;
+            }
+            const allRoleKeys = Object.keys(roleCodes);
+            const newWorkers = JSON.parse(JSON.stringify(workers));
+            const warnings = [];
+
+            days.forEach(day => {
+                const workersOnDuty = newWorkers.filter(w =>
+                    w.dayOff !== day &&
+                    !(w.multipleDaysOff || []).includes(day)
+                );
+
+                if (workersOnDuty.length === 0) return;
+
+                // Check if unique roles are possible
+                if (workersOnDuty.length > allRoleKeys.length) {
+                    warnings.push(`${day}: No se pueden asignar roles únicos (${workersOnDuty.length} trabajadores > ${allRoleKeys.length} roles). Se omitió la asignación para este día.`);
+                    return; // Skip this day
+                }
+
+                // Create a shuffled pool of unique roles for assignment
+                let rolesToAssign = [...allRoleKeys].sort(() => 0.5 - Math.random());
+                let assignedRoles = rolesToAssign.slice(0, workersOnDuty.length);
+
+                // Ensure a cashier is assigned
+                const hasCashier = assignedRoles.some(r => cashierRoles.includes(r));
+                if (!hasCashier) {
+                    // If no cashier in the assigned pool, swap one in
+                    const randomCashierRole = cashierRoles[Math.floor(Math.random() * cashierRoles.length)];
+                    const indexToSwap = Math.floor(Math.random() * assignedRoles.length);
+                    
+                    // Remove the cashier role from the main pool to avoid duplicates if it's already there
+                    rolesToAssign = rolesToAssign.filter(r => r !== randomCashierRole);
+                    // Replace the role at the swap index with the cashier role
+                    rolesToAssign.splice(indexToSwap, 0, randomCashierRole);
+                    
+                    // Re-slice the assigned roles
+                    assignedRoles = rolesToAssign.slice(0, workersOnDuty.length);
+                }
+
+                // Assign unique roles to workers for the current day
+                workersOnDuty.forEach((worker, index) => {
+                    if (!worker.dailyRoles) worker.dailyRoles = {};
+                    worker.dailyRoles[day] = assignedRoles[index];
+                });
+            });
+
+            // Update primary role for UI display
+            newWorkers.forEach(w => {
+                if (!w.dailyRoles) return;
+                const counts = Object.values(w.dailyRoles).reduce((acc, role) => {
+                    if(role) acc[role] = (acc[role] || 0) + 1;
+                    return acc;
+                }, {});
+                const primaryRole = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+                if (primaryRole) {
+                    w.roleCode = primaryRole;
+                    w.roleName = roleCodes[primaryRole].name;
+                    w.color = roleCodes[primaryRole].color;
+                }
+            });
+
+            setWorkers(newWorkers);
+
+            if (warnings.length > 0) {
+                alert('Advertencias:\n' + warnings.join('\n'));
+            } else {
+                alert('¡Roles aleatorios y únicos asignados! Se ha garantizado un cajero para cada día.');
+            }
+          };
+
+          const toggleAllDays = () => {
+            if (randomDaysConfig.selectedDays.length === days.length) {
+              setRandomDaysConfig({
+                ...randomDaysConfig,
+                selectedDays: []
+              });
+            } else {
+              setRandomDaysConfig({
+                ...randomDaysConfig,
+                selectedDays: [...days]
+              });
+            }
           };
 
           const toggleRandomDay = (day) => {
@@ -180,85 +411,406 @@
             }
           };
 
+          const handleDailyRoleChange = (day, role) => {
+            setNewWorker(prev => {
+                const newDailyRoles = { ...prev.dailyRoles };
+                if (role === 'default') {
+                    delete newDailyRoles[day];
+                } else {
+                    newDailyRoles[day] = role;
+                }
+                return { ...prev, dailyRoles: newDailyRoles };
+            });
+          };
+
           const deleteWorker = (id) => {
             setWorkers(workers.filter(w => w.id !== id));
           };
 
+          // --- MODIFICADO: Usar customHours para apertura/cierre ---
+          const getRequiredWorkers = (day) => {
+            if (manualStaffConfig[day]) {
+              return manualStaffConfig[day];
+            }
+            const dayType = dayTypes[day];
+            if (dayType === 'alto') {
+              return { opening: 5, closing: 7 };
+            } else {
+              return { opening: 5, closing: 5 };
+            }
+          };
+
+          const updateStaffConfig = (day, shift, value) => {
+            const numValue = parseInt(value, 10) || 0;
+            setManualStaffConfig(prev => ({
+              ...prev,
+              [day]: {
+                ...prev[day],
+                [shift]: numValue
+              }
+            }));
+          };
+
+          const calculateWeeklyHours = (workerId) => {
+            return schedule
+              .filter(shift => shift.workerId === workerId)
+              .reduce((total, shift) => total + (shift.endTime - shift.startTime), 0);
+          };
+
+          // --- CORREGIDO: Función mejorada para manejo de horas manuales ---
+          const handleManualHourChange = (workerId, day, type, value) => {
+            const hour = value === '' ? null : parseInt(value, 10);
+            const open = customHours[day]?.open ?? 12;
+            const close = customHours[day]?.close ?? 22;
+            
+            if (hour !== null && (hour < open || hour > close)) {
+              alert(`La hora debe estar entre ${open} y ${close}.`);
+              return;
+            }
+
+            setManualHours(prev => {
+              const newManualHours = { ...prev };
+              if (!newManualHours[workerId]) {
+                newManualHours[workerId] = {};
+              }
+              if (!newManualHours[workerId][day]) {
+                newManualHours[workerId][day] = { startTime: null, endTime: null };
+              }
+              
+              const updatedDay = { ...newManualHours[workerId][day], [type]: hour };
+              
+              // Validar que startTime sea menor que endTime
+              if (type === 'startTime' && updatedDay.endTime !== null && hour !== null && hour >= updatedDay.endTime) {
+                alert('La hora de inicio debe ser menor que la hora de fin.');
+                return prev;
+              }
+              if (type === 'endTime' && updatedDay.startTime !== null && hour !== null && hour <= updatedDay.startTime) {
+                alert('La hora de fin debe ser mayor que la hora de inicio.');
+                return prev;
+              }
+              
+              if (updatedDay.startTime === null && updatedDay.endTime === null) {
+                delete newManualHours[workerId][day];
+                if (Object.keys(newManualHours[workerId]).length === 0) {
+                  delete newManualHours[workerId];
+                }
+              } else {
+                newManualHours[workerId][day] = updatedDay;
+              }
+              
+              return newManualHours;
+            });
+          };
+
+          const applyManualHours = () => {
+            setShowManualHoursModal(false);
+            generateSchedule();
+          };
+
+          // --- NUEVO: Validar roles por turno (Caja 1) ---
+          const validateRolesPerShift = (schedule) => {
+            const issues = [];
+            days.forEach(day => {
+              const shifts = schedule.filter(s => s.day === day);
+              const hasC1 = shifts.some(s => s.roleCode === 'C1');
+              if (!hasC1) issues.push(`Falta Caja 1 en ${day}`);
+            });
+            if (issues.length > 0) alert('Advertencia:\n' + issues.join('\n'));
+          };
+          // --- FIN NUEVO ---
+
+          // --- MEJORADO: Función de generación de horarios con lógica de completar horas ---
           const generateSchedule = () => {
             const newSchedule = [];
-            
+            const workerWeeklyHours = {};
+            const manuallyAssigned = new Set();
+
+            // Inicializar horas semanales
+            workers.forEach(worker => {
+              workerWeeklyHours[worker.id] = 0;
+            });
+
+            // Primero, procesar las asignaciones manuales
+            for (const workerId in manualHours) {
+              const worker = workers.find(w => w.id == workerId);
+              if (!worker) continue;
+              
+              for (const day in manualHours[workerId]) {
+                const { startTime, endTime } = manualHours[workerId][day];
+                if (startTime !== null && endTime !== null && startTime < endTime) {
+                  const hoursWorked = endTime - startTime;
+                  const dailyRoleCode = worker.dailyRoles?.[day] || worker.roleCode;
+                  const roleInfo = roleCodes[dailyRoleCode];
+                  newSchedule.push({
+                    day,
+                    workerId: worker.id,
+                    workerName: worker.name,
+                    startTime,
+                    endTime,
+                    contractType: 'Manual',
+                    dayOff: worker.dayOff,
+                    roleCode: dailyRoleCode,
+                    color: roleInfo.color,
+                    isManual: true
+                  });
+                  workerWeeklyHours[worker.id] += hoursWorked;
+                  manuallyAssigned.add(`${worker.id}-${day}`);
+                }
+              }
+            }
+
+            // Segundo, asignación automática para cubrir requerimientos por día
             days.forEach(day => {
-              const availableWorkers = workers.filter(worker => worker.dayOff !== day);
+              const open = customHours[day]?.open ?? 12;
+              const close = customHours[day]?.close ?? 22;
+              const shiftChange = Math.floor((open + close) / 2); // Punto medio dinámico
+              
+              const availableWorkers = workers.filter(worker => 
+                worker.dayOff !== day && 
+                !worker.multipleDaysOff?.includes(day) &&
+                !manuallyAssigned.has(`${worker.id}-${day}`)
+              );
               
               if (availableWorkers.length === 0) return;
-
-              const fullTimeWorkers = availableWorkers.filter(w => w.contractType === 'full');
-              const partTimeWorkers = availableWorkers.filter(w => w.contractType === 'part');
-
-              const dayShifts = [];
-              let assignedFullTime = 0;
-              let assignedPartTimeOpening = 0;
-              let assignedPartTimeClosing = 0;
-
-              // Prioridad 1: Asignar trabajadores de tiempo completo hasta el límite configurado
-              fullTimeWorkers.forEach((worker) => {
-                if (assignedFullTime < Math.max(scheduleConfig.openingWorkers, scheduleConfig.closingWorkers)) {
-                  dayShifts.push({
-                    day,
-                    workerId: worker.id,
-                    workerName: worker.name,
-                    startTime: RESTAURANT_OPEN,
-                    endTime: RESTAURANT_CLOSE,
-                    contractType: 'Tiempo Completo',
-                    dayOff: worker.dayOff
-                  });
-                  assignedFullTime++;
-                }
-              });
-
-              // Prioridad 2: Completar turno de apertura con trabajadores de medio tiempo
-              const neededOpening = scheduleConfig.openingWorkers - assignedFullTime;
-              partTimeWorkers.forEach((worker, index) => {
-                if (assignedPartTimeOpening < neededOpening) {
-                  dayShifts.push({
-                    day,
-                    workerId: worker.id,
-                    workerName: worker.name,
-                    startTime: RESTAURANT_OPEN,
-                    endTime: SHIFT_CHANGE,
-                    contractType: 'Medio Tiempo - Apertura',
-                    dayOff: worker.dayOff
-                  });
-                  assignedPartTimeOpening++;
-                }
-              });
-
-              // Prioridad 3: Completar turno de cierre con trabajadores de medio tiempo restantes
-              const neededClosing = scheduleConfig.closingWorkers - assignedFullTime;
-              const remainingPartTime = partTimeWorkers.slice(assignedPartTimeOpening);
               
-              remainingPartTime.forEach((worker) => {
-                if (assignedPartTimeClosing < neededClosing) {
-                  dayShifts.push({
-                    day,
-                    workerId: worker.id,
-                    workerName: worker.name,
-                    startTime: SHIFT_CHANGE,
-                    endTime: RESTAURANT_CLOSE,
-                    contractType: 'Medio Tiempo - Cierre',
-                    dayOff: worker.dayOff
-                  });
-                  assignedPartTimeClosing++;
+              const required = getRequiredWorkers(day);
+              const dayShifts = [];
+              
+              // Contar asignaciones manuales del día
+              const manualShiftsToday = newSchedule.filter(s => s.day === day && s.isManual);
+              let assignedOpening = manualShiftsToday.filter(s => s.startTime < shiftChange).length;
+              let assignedClosing = manualShiftsToday.filter(s => s.endTime > shiftChange).length;
+
+              // Separar trabajadores por tipo
+              let fullTimeWorkers = availableWorkers.filter(w => w.contractType === 'full');
+              let partTimeWorkers = availableWorkers.filter(w => w.contractType === 'part');
+
+              // Ordenar por horas trabajadas (menos horas primero)
+              fullTimeWorkers.sort((a, b) => workerWeeklyHours[a.id] - workerWeeklyHours[b.id]);
+              partTimeWorkers.sort((a, b) => workerWeeklyHours[a.id] - workerWeeklyHours[b.id]);
+
+              // Asignar trabajadores de tiempo completo
+              fullTimeWorkers.forEach(worker => {
+                const currentHours = workerWeeklyHours[worker.id];
+                const maxWeeklyHours = 48;
+                
+                if (currentHours < maxWeeklyHours) {
+                  const remainingHours = maxWeeklyHours - currentHours;
+                  const dailyRoleCode = worker.dailyRoles?.[day] || worker.roleCode;
+                  const roleInfo = roleCodes[dailyRoleCode];
+                  
+                  // Preferir doble turno si es posible y necesario
+                  if (remainingHours >= (close - open) && assignedOpening < required.opening && assignedClosing < required.closing) {
+                    dayShifts.push({
+                      day,
+                      workerId: worker.id,
+                      workerName: worker.name,
+                      startTime: open,
+                      endTime: close,
+                      contractType: 'Tiempo Completo - Doble Turno',
+                      dayOff: worker.dayOff,
+                      roleCode: dailyRoleCode,
+                      color: roleInfo.color,
+                      isManual: false
+                    });
+                    workerWeeklyHours[worker.id] += (close - open);
+                    assignedOpening++;
+                    assignedClosing++;
+                  }
+                  else if (remainingHours >= (shiftChange - open) && assignedOpening < required.opening) {
+                    dayShifts.push({
+                      day,
+                      workerId: worker.id,
+                      workerName: worker.name,
+                      startTime: open,
+                      endTime: shiftChange,
+                      contractType: 'Tiempo Completo - Apertura',
+                      dayOff: worker.dayOff,
+                      roleCode: dailyRoleCode,
+                      color: roleInfo.color,
+                      isManual: false
+                    });
+                    workerWeeklyHours[worker.id] += (shiftChange - open);
+                    assignedOpening++;
+                  }
+                  else if (remainingHours >= (close - shiftChange) && assignedClosing < required.closing) {
+                    dayShifts.push({
+                      day,
+                      workerId: worker.id,
+                      workerName: worker.name,
+                      startTime: shiftChange,
+                      endTime: close,
+                      contractType: 'Tiempo Completo - Cierre',
+                      dayOff: worker.dayOff,
+                      roleCode: dailyRoleCode,
+                      color: roleInfo.color,
+                      isManual: false
+                    });
+                    workerWeeklyHours[worker.id] += (close - shiftChange);
+                    assignedClosing++;
+                  }
+                }
+              });
+
+              // Asignar trabajadores de medio tiempo
+              partTimeWorkers.forEach(worker => {
+                const currentHours = workerWeeklyHours[worker.id];
+                const maxWeeklyHours = 24;
+                
+                if (currentHours < maxWeeklyHours) {
+                  const remainingHours = maxWeeklyHours - currentHours;
+                  const dailyRoleCode = worker.dailyRoles?.[day] || worker.roleCode;
+                  const roleInfo = roleCodes[dailyRoleCode];
+                  
+                  if (remainingHours >= (shiftChange - open) && assignedOpening < required.opening) {
+                    dayShifts.push({
+                      day,
+                      workerId: worker.id,
+                      workerName: worker.name,
+                      startTime: open,
+                      endTime: shiftChange,
+                      contractType: 'Medio Tiempo - Apertura',
+                      dayOff: worker.dayOff,
+                      roleCode: dailyRoleCode,
+                      color: roleInfo.color,
+                      isManual: false
+                    });
+                    workerWeeklyHours[worker.id] += (shiftChange - open);
+                    assignedOpening++;
+                  }
+                  else if (remainingHours >= (close - shiftChange) && assignedClosing < required.closing) {
+                    dayShifts.push({
+                      day,
+                      workerId: worker.id,
+                      workerName: worker.name,
+                      startTime: shiftChange,
+                      endTime: close,
+                      contractType: 'Medio Tiempo - Cierre',
+                      dayOff: worker.dayOff,
+                      roleCode: dailyRoleCode,
+                      color: roleInfo.color,
+                      isManual: false
+                    });
+                    workerWeeklyHours[worker.id] += (close - shiftChange);
+                    assignedClosing++;
+                  }
                 }
               });
 
               newSchedule.push(...dayShifts);
             });
 
+            // Tercero, completar horas faltantes para trabajadores que no alcanzan su objetivo
+            const completeWorkerHours = () => {
+              let hoursCompleted = false;
+              
+              workers.forEach(worker => {
+                const targetHours = worker.contractType === 'full' ? 48 : 24;
+                const currentHours = workerWeeklyHours[worker.id];
+                
+                if (currentHours < targetHours) {
+                  const neededHours = targetHours - currentHours;
+                  
+                  // Buscar días disponibles para completar horas
+                  const availableDays = days.filter(day => 
+                    worker.dayOff !== day && 
+                    !worker.multipleDaysOff?.includes(day) &&
+                    !newSchedule.some(shift => shift.workerId === worker.id && shift.day === day)
+                  );
+
+                  for (const day of availableDays) {
+                    if (neededHours <= 0) break;
+                    
+                    const open = customHours[day]?.open ?? 12;
+                    const close = customHours[day]?.close ?? 22;
+                    const shiftChange = Math.floor((open + close) / 2);
+                    
+                    let hoursToAssign = 0;
+                    let startTime, endTime, shiftType;
+                    
+                    // Determinar qué turno asignar basado en horas necesarias
+                    if (neededHours >= (close - open)) {
+                      // Turno completo
+                      hoursToAssign = close - open;
+                      startTime = open;
+                      endTime = close;
+                      shiftType = 'Completar Horas - Doble Turno';
+                    } else if (neededHours >= (shiftChange - open)) {
+                      // Turno de apertura
+                      hoursToAssign = shiftChange - open;
+                      startTime = open;
+                      endTime = shiftChange;
+                      shiftType = 'Completar Horas - Apertura';
+                    } else if (neededHours >= (close - shiftChange)) {
+                      // Turno de cierre
+                      hoursToAssign = close - shiftChange;
+                      startTime = shiftChange;
+                      endTime = close;
+                      shiftType = 'Completar Horas - Cierre';
+                    } else if (neededHours > 0) {
+                      // Turno parcial (las horas que falten)
+                      hoursToAssign = neededHours;
+                      startTime = open;
+                      endTime = open + neededHours;
+                      shiftType = 'Completar Horas - Parcial';
+                    }
+                    
+                    if (hoursToAssign > 0) {
+                      const dailyRoleCode = worker.dailyRoles?.[day] || worker.roleCode;
+                      const roleInfo = roleCodes[dailyRoleCode];
+                      newSchedule.push({
+                        day,
+                        workerId: worker.id,
+                        workerName: worker.name,
+                        startTime,
+                        endTime,
+                        contractType: shiftType,
+                        dayOff: worker.dayOff,
+                        roleCode: dailyRoleCode,
+                        color: roleInfo.color,
+                        isManual: false,
+                        isCompletionShift: true
+                      });
+                      
+                      workerWeeklyHours[worker.id] += hoursToAssign;
+                      hoursCompleted = true;
+                    }
+                  }
+                }
+              });
+              
+              return hoursCompleted;
+            };
+
+            // Ejecutar completar horas hasta 3 intentos
+            let attempts = 0;
+            while (attempts < 3 && completeWorkerHours()) {
+              attempts++;
+            }
+
             setSchedule(newSchedule);
+            validateRolesPerShift(newSchedule);
+            
+            // Mostrar resumen de horas
+            const alerts = [];
+            workers.forEach(worker => {
+              const expectedHours = worker.contractType === 'full' ? 48 : 24;
+              const actualHours = workerWeeklyHours[worker.id];
+              if (actualHours < expectedHours) {
+                alerts.push(`${worker.name}: ${actualHours}/${expectedHours} horas (faltan ${expectedHours - actualHours})`);
+              }
+              if (actualHours > expectedHours) {
+                alerts.push(`${worker.name}: ${actualHours}/${expectedHours} horas (exceso de ${actualHours - expectedHours})`);
+              }
+            });
+            
+            if (alerts.length > 0) {
+              console.log('Resumen de horas semanales:', alerts.join('\n'));
+            }
           };
 
           const formatTime = (hour) => {
+            if (hour === undefined || hour === null) return '';
             return `${hour}:00`;
           };
 
@@ -271,83 +823,106 @@
               alert('No hay horarios para exportar. Agrega trabajadores primero.');
               return;
             }
-
-            // Crear datos para Excel
             const excelData = [];
-            
-            // Agregar encabezados
             excelData.push([
               'Día',
               'Trabajador',
+              'Código',
+              'Color',
               'Hora Inicio',
               'Hora Fin',
               'Tipo de Contrato',
               'Día de Descanso',
-              'Horas Trabajadas'
+              'Horas Trabajadas',
+              'Horas Acumuladas Semana',
+              'Tipo Asignación'
             ]);
-
-            // Agregar datos del horario
             days.forEach(day => {
               const dayShifts = getScheduleForDay(day);
               if (dayShifts.length === 0) {
-                excelData.push([day, 'Sin trabajadores asignados', '', '', '', '', '']);
+                excelData.push([day, 'Sin trabajadores asignados', '', '', '', '', '', '', '', '', '']);
               } else {
                 dayShifts.forEach((shift, index) => {
                   const hoursWorked = shift.endTime - shift.startTime;
+                  const weeklyHours = calculateWeeklyHours(shift.workerId);
                   excelData.push([
-                    index === 0 ? day : '', // Solo mostrar el día en la primera fila
+                    index === 0 ? day : '',
                     shift.workerName,
+                    shift.roleCode,
+                    shift.color,
                     formatTime(shift.startTime),
                     formatTime(shift.endTime),
                     shift.contractType,
                     shift.dayOff,
-                    `${hoursWorked} horas`
+                    `${hoursWorked} horas`,
+                    `${weeklyHours} horas`,
+                    shift.isManual ? 'Manual' : (shift.isCompletionShift ? 'Completar Horas' : 'Automático')
                   ]);
                 });
               }
             });
-            //pruebita xd
-            // Agregar resumen al final
-            excelData.push(['']); // Fila vacía
+            excelData.push(['']);
             excelData.push(['RESUMEN DE TRABAJADORES']);
-            excelData.push(['Nombre', 'Tipo de Contrato', 'Día de Descanso', 'Horas por Día']);
-            
+            excelData.push(['Nombre', 'Código', 'Tipo de Contrato', 'Día de Descanso', 'Horas Semanales Asignadas', 'Horas Objetivo']);
             workers.forEach(worker => {
-              const hoursPerDay = worker.contractType === 'full' ? 10 : 5;
+              const weeklyHours = calculateWeeklyHours(worker.id);
+              const targetHours = worker.contractType === 'full' ? 48 : 24;
               excelData.push([
                 worker.name,
+                worker.roleCode,
                 worker.contractType === 'full' ? 'Tiempo Completo' : 'Medio Tiempo',
                 worker.dayOff,
-                `${hoursPerDay} horas`
+                `${weeklyHours} horas`,
+                `${targetHours} horas`
               ]);
             });
-
-            // Crear el libro de Excel
             const ws = XLSX.utils.aoa_to_sheet(excelData);
             const wb = XLSX.utils.book_new();
-            
-            // Configurar ancho de columnas
             ws['!cols'] = [
-              { width: 12 }, // Día
-              { width: 20 }, // Trabajador
-              { width: 12 }, // Hora Inicio
-              { width: 12 }, // Hora Fin
-              { width: 18 }, // Tipo de Contrato
-              { width: 16 }, // Día de Descanso
-              { width: 15 }  // Horas Trabajadas
+              { width: 12 }, { width: 20 }, { width: 8 }, { width: 12 }, { width: 12 },
+              { width: 12 }, { width: 25 }, { width: 16 }, { width: 15 }, { width: 18 }, { width: 12 }
             ];
-
-            // Agregar la hoja al libro
             XLSX.utils.book_append_sheet(wb, ws, "Horario Semanal");
-
-            // Generar nombre del archivo con fecha actual
             const today = new Date();
-            const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+            const dateStr = today.toISOString().split('T')[0];
             const fileName = `Horario_Restaurante_${dateStr}.xlsx`;
-
-            // Descargar el archivo
             XLSX.writeFile(wb, fileName);
           };
+
+          // --- NUEVO: Exportar a PDF ---
+          const exportToPDF = () => {
+            if (schedule.length === 0) {
+              alert('No hay horarios para exportar.');
+              return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(12);
+            doc.text("Horario Semanal Restaurante", 10, 10);
+            let y = 20;
+            days.forEach(day => {
+              doc.setFontSize(11);
+              doc.text(day, 10, y);
+              y += 6;
+              const shifts = getScheduleForDay(day);
+              if (shifts.length === 0) {
+                doc.text("Sin trabajadores asignados", 15, y);
+                y += 6;
+              } else {
+                shifts.forEach(shift => {
+                  doc.text(
+                    `${shift.workerName} (${shift.roleCode}) ${formatTime(shift.startTime)}-${formatTime(shift.endTime)} (${shift.contractType})`,
+                    15, y
+                  );
+                  y += 6;
+                  if (y > 270) { doc.addPage(); y = 10; }
+                });
+              }
+              y += 4;
+            });
+            doc.save("Horario_Restaurante.pdf");
+          };
+          // --- FIN NUEVO ---
 
           return React.createElement('div', { className: "max-w-7xl mx-auto p-6 bg-gray-50 min-h-screen" },
             React.createElement('div', { className: "bg-white rounded-lg shadow-lg p-6 mb-6" },
@@ -356,56 +931,74 @@
                 React.createElement('h1', { className: "text-3xl font-bold text-gray-800" }, "Sistema de Gestión de Horarios")
               ),
 
-              // Configuración
-              React.createElement('div', { className: "grid md:grid-cols-2 gap-6 mb-8" },
-                React.createElement('div', { className: "bg-blue-50 p-4 rounded-lg" },
-                  React.createElement('h3', { className: "font-semibold text-blue-800 mb-3 flex items-center gap-2" },
-                    React.createElement('span', null, "🕐"),
-                    "Configuración de Turnos",
-                    React.createElement('span', { className: "text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full ml-2" }, "Auto-actualiza")
+              // Configuración de días
+              React.createElement('div', { className: "mb-8" },
+                React.createElement('div', { className: "flex justify-between items-center mb-4" },
+                  React.createElement('h3', { className: "font-semibold text-gray-800 flex items-center gap-2" },
+                    React.createElement('span', null, "📊"),
+                    "Configuración de Días (Bajo/Alto)"
                   ),
-                  React.createElement('div', { className: "space-y-3" },
-                    React.createElement('div', null,
-                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" },
-                        "Personal mínimo en apertura (12:00 PM - 5:00 PM)"
-                      ),
-                      React.createElement('input', {
-                        type: "number",
-                        min: "1",
-                        value: scheduleConfig.openingWorkers,
-                        onChange: (e) => {
-                          const newConfig = {...scheduleConfig, openingWorkers: parseInt(e.target.value)};
-                          setScheduleConfig(newConfig);
-                          // Regenerar horario automáticamente cuando cambie la configuración
-                          if (workers.length > 0) {
-                            setTimeout(() => generateSchedule(), 100);
-                          }
-                        },
-                        className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      })
-                    ),
-                    React.createElement('div', null,
-                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" },
-                        "Personal mínimo hasta cierre (5:00 PM - 10:00 PM)"
-                      ),
-                      React.createElement('input', {
-                        type: "number",
-                        min: "1",
-                        value: scheduleConfig.closingWorkers,
-                        onChange: (e) => {
-                          const newConfig = {...scheduleConfig, closingWorkers: parseInt(e.target.value)};
-                          setScheduleConfig(newConfig);
-                          // Regenerar horario automáticamente cuando cambie la configuración
-                          if (workers.length > 0) {
-                            setTimeout(() => generateSchedule(), 100);
-                          }
-                        },
-                        className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      })
-                    )
+                  React.createElement('button', {
+                    onClick: () => setShowStaffConfigModal(true),
+                    className: "bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                  },
+                    React.createElement('span', null, "⚙️"),
+                    "Configurar Personal"
                   )
                 ),
+                React.createElement('div', { className: "grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4" },
+                  days.map(day => {
+                    const required = getRequiredWorkers(day);
+                    return React.createElement('div', { key: day, className: "bg-gray-50 p-3 rounded-lg" },
+                      React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-2" }, day),
+                      React.createElement('select',
+                        {
+                          value: dayTypes[day],
+                          onChange: (e) => {
+                            const newType = e.target.value;
+                            setDayTypes(prev => ({...prev, [day]: newType}));
+                            setManualStaffConfig(prev => ({
+                              ...prev,
+                              [day]: newType === 'alto' ? { opening: 5, closing: 7 } : { opening: 5, closing: 5 }
+                            }));
+                          },
+                          className: "w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mb-1"
+                        },
+                        React.createElement('option', { value: "bajo" }, "Bajo"),
+                        React.createElement('option', { value: "alto" }, "Alto")
+                      ),
+                      React.createElement('div', { className: "text-xs text-gray-600" },
+                        `${required.opening}+${required.closing}`
+                      ),
+                      // --- NUEVO: Inputs de apertura/cierre por día ---
+                      React.createElement('div', { className: "mt-2 flex flex-col gap-1" },
+                        React.createElement('label', { className: "text-xs" }, "Apertura"),
+                        React.createElement('input', {
+                          type: "number",
+                          min: 0,
+                          max: 23,
+                          value: customHours[day].open,
+                          onChange: (e) => updateCustomHours(day, 'open', e.target.value),
+                          className: "w-full px-2 py-1 text-xs border rounded"
+                        }),
+                        React.createElement('label', { className: "text-xs" }, "Cierre"),
+                        React.createElement('input', {
+                          type: "number",
+                          min: 0,
+                          max: 23,
+                          value: customHours[day].close,
+                          onChange: (e) => updateCustomHours(day, 'close', e.target.value),
+                          className: "w-full px-2 py-1 text-xs border rounded"
+                        })
+                      )
+                      // --- FIN NUEVO ---
+                    )
+                  })
+                )
+              ),
 
+              // Información del restaurante
+              React.createElement('div', { className: "grid md:grid-cols-2 gap-6 mb-8" },
                 React.createElement('div', { className: "bg-green-50 p-4 rounded-lg" },
                   React.createElement('h3', { className: "font-semibold text-green-800 mb-3 flex items-center gap-2" },
                     React.createElement('span', null, "👥"),
@@ -414,27 +1007,51 @@
                   React.createElement('div', { className: "space-y-2 text-sm text-gray-700" },
                     React.createElement('p', null,
                       React.createElement('strong', null, "Horario: "),
-                      "Lunes a Domingo, 12:00 PM - 10:00 PM"
+                      "Lunes a Domingo, apertura/cierre configurable"
+                    ),
+                    React.createElement('p', null,
+                      React.createElement('strong', null, "Turno Apertura: "),
+                      "Apertura - Cambio de turno (6 horas)"
+                    ),
+                    React.createElement('p', null,
+                      React.createElement('strong', null, "Turno Cierre: "),
+                      "Cambio de turno - Cierre (4 horas)"
                     ),
                     React.createElement('p', null,
                       React.createElement('strong', null, "Tiempo Completo: "),
-                      "10 horas por día (12:00 PM - 10:00 PM)"
+                      "48 horas semanales"
                     ),
                     React.createElement('p', null,
-                      React.createElement('strong', null, "Medio Tiempo Apertura: "),
-                      "5 horas (12:00 PM - 5:00 PM)"
+                      React.createElement('strong', null, "Medio Tiempo: "),
+                      "24 horas semanales"
                     ),
-                    React.createElement('p', null,
-                      React.createElement('strong', null, "Medio Tiempo Cierre: "),
-                      "5 horas (5:00 PM - 10:00 PM)"
+                    React.createElement('p', { className: "text-emerald-700 font-medium" },
+                      React.createElement('strong', null, "✨ Nuevo: "),
+                      "Sistema completa automáticamente horas faltantes"
+                    )
+                  )
+                ),
+                
+                React.createElement('div', { className: "bg-purple-50 p-4 rounded-lg" },
+                  React.createElement('div', { className: "flex justify-between items-center mb-3" },
+                    React.createElement('h3', { className: "font-semibold text-purple-800 flex items-center gap-2" },
+                      React.createElement('span', null, "🏷️"),
+                      "Códigos de Roles"
                     ),
-                    React.createElement('p', null,
-                      React.createElement('strong', null, "Configuración Actual: "),
-                      `${scheduleConfig.openingWorkers} personas en apertura, ${scheduleConfig.closingWorkers} personas hasta cierre`
-                    ),
-                    React.createElement('p', null,
-                      React.createElement('strong', null, "Descanso: "),
-                      "1 día por semana por trabajador"
+                    React.createElement('button', {
+                      onClick: () => setShowRoleManager(true),
+                      className: "text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-md hover:bg-purple-200 transition-colors"
+                    }, "Gestionar")
+                  ),
+                  React.createElement('div', { className: "grid grid-cols-2 gap-2 text-xs" },
+                    Object.values(roleCodes).map(role => 
+                      React.createElement('div', { key: role.code, className: "flex items-center gap-2" },
+                        React.createElement('div', { 
+                          className: "w-4 h-4 rounded",
+                          style: { backgroundColor: role.color }
+                        }),
+                        React.createElement('span', null, `${role.code} - ${role.name}`)
+                      )
                     )
                   )
                 )
@@ -446,11 +1063,25 @@
                   React.createElement('h2', { className: "text-xl font-semibold text-gray-800" }, "Trabajadores"),
                   React.createElement('div', { className: "flex gap-2" },
                     React.createElement('button', {
+                      onClick: () => setShowManualHoursModal(true),
+                      className: "bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "⏱️"),
+                      "Horas Manuales"
+                    ),
+                    React.createElement('button', {
                       onClick: () => setShowRandomAssignment(true),
                       className: "bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
                     },
                       React.createElement('span', null, "🎲"),
                       "Días Aleatorios"
+                    ),
+                    React.createElement('button', {
+                      onClick: assignRandomRoles,
+                      className: "bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "🎭"),
+                      "Roles Aleatorios"
                     ),
                     React.createElement('button', {
                       onClick: () => setShowAddWorker(true),
@@ -470,7 +1101,13 @@
                     workers.map(worker => 
                       React.createElement('div', { key: worker.id, className: "bg-white border border-gray-200 rounded-lg p-4" },
                         React.createElement('div', { className: "flex justify-between items-start mb-2" },
-                          React.createElement('h3', { className: "font-semibold text-gray-800" }, worker.name),
+                          React.createElement('div', { className: "flex items-center gap-2" },
+                            React.createElement('div', { 
+                              className: "w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold",
+                              style: { backgroundColor: worker.color }
+                            }, worker.roleCode),
+                            React.createElement('h3', { className: "font-semibold text-gray-800" }, worker.name)
+                          ),
                           React.createElement('div', { className: "flex gap-2" },
                             React.createElement('button', {
                               onClick: () => editWorker(worker.id),
@@ -482,24 +1119,106 @@
                             }, "🗑️")
                           )
                         ),
-                        React.createElement('p', { className: "text-sm text-gray-600" },
+                        React.createElement('p', { className: "text-sm text-gray-600 mb-1" },
+                          React.createElement('strong', null, "Rol: "),
+                          roleCodes[worker.roleCode].name
+                        ),
+                        React.createElement('p', { className: "text-sm text-gray-600 mb-1" },
                           React.createElement('strong', null, "Contrato: "),
                           worker.contractType === 'full' ? 'Tiempo Completo' : 'Medio Tiempo'
                         ),
-                        React.createElement('p', { className: "text-sm text-gray-600" },
-                          React.createElement('strong', null, "Día(s) libre: "),
+                        React.createElement('p', { className: "text-sm text-gray-600 mb-1" },
+                          React.createElement('strong', null, "Día libre: "),
                           worker.multipleDaysOff && worker.multipleDaysOff.length > 0 
                             ? worker.multipleDaysOff.join(', ')
                             : worker.dayOff
+                        ),
+                        schedule.length > 0 && React.createElement('div', null,
+                          React.createElement('p', { className: "text-sm font-semibold text-blue-600" },
+                            React.createElement('strong', null, "Horas semana: "),
+                            `${calculateWeeklyHours(worker.id)}h`
+                          ),
+                          React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-2 mt-1" },
+                            React.createElement('div', { 
+                              className: "bg-blue-600 h-2 rounded-full",
+                              style: { 
+                                width: `${Math.min((calculateWeeklyHours(worker.id) / (worker.contractType === 'full' ? 48 : 24)) * 100, 100)}%`
+                              }
+                            })
+                          )
                         )
                       )
                     )
                   )
               ),
 
+              // Modal para configuración de personal por día
+              showStaffConfigModal && React.createElement('div', { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" },
+                React.createElement('div', { className: "bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto" },
+                  React.createElement('div', { className: "flex items-center gap-2 mb-4" },
+                    React.createElement('span', { className: "text-2xl" }, "⚙️"),
+                    React.createElement('h3', { className: "text-lg font-semibold" }, "Configuración Manual de Personal")
+                  ),
+                  React.createElement('p', { className: "text-gray-600 mb-4" },
+                    "Establece la cantidad exacta de trabajadores requeridos para apertura y cierre por cada día."
+                  ),
+                  React.createElement('div', { className: "grid md:grid-cols-2 gap-6" },
+                    days.map(day =>
+                      React.createElement('div', { key: day, className: "bg-gray-50 p-4 rounded-lg" },
+                        React.createElement('h4', { className: "font-semibold text-gray-800 mb-3" }, day),
+                        React.createElement('div', { className: "space-y-3" },
+                          React.createElement('div', null,
+                            React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" },
+                              "Apertura"
+                            ),
+                            React.createElement('input', {
+                              type: "number",
+                              min: "0",
+                              max: "20",
+                              value: manualStaffConfig[day].opening,
+                              onChange: (e) => updateStaffConfig(day, 'opening', e.target.value),
+                              className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            })
+                          ),
+                          React.createElement('div', null,
+                            React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" },
+                              "Cierre"
+                            ),
+                            React.createElement('input', {
+                              type: "number",
+                              min: "0",
+                              max: "20",
+                              value: manualStaffConfig[day].closing,
+                              onChange: (e) => updateStaffConfig(day, 'closing', e.target.value),
+                              className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            })
+                          ),
+                          React.createElement('div', { className: "text-xs text-gray-500" },
+                            `Total: ${manualStaffConfig[day].opening + manualStaffConfig[day].closing} trabajadores`
+                          )
+                        )
+                      )
+                    )
+                  ),
+                  React.createElement('div', { className: "flex gap-3 mt-6" },
+                    React.createElement('button', {
+                      onClick: () => setShowStaffConfigModal(false),
+                      className: "flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                    }, "Cerrar"),
+                    React.createElement('button', {
+                      onClick: () => {
+                        setShowStaffConfigModal(false);
+                        generateSchedule();
+                      },
+                      className: "flex-1 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
+                    }, "Aplicar y Regenerar")
+                  )
+                )
+              ),
+
               // Modal para agregar/editar trabajador
               showAddWorker && React.createElement('div', { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" },
-                React.createElement('div', { className: "bg-white rounded-lg p-6 w-full max-w-md" },
+                React.createElement('div', { className: "bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" },
                   React.createElement('h3', { className: "text-lg font-semibold mb-4" },
                     editingWorker ? 'Editar Trabajador' : 'Agregar Nuevo Trabajador'
                   ),
@@ -517,14 +1236,38 @@
                     ),
 
                     React.createElement('div', null,
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, "Teléfono (WhatsApp)"),
+                      React.createElement('input', {
+                        type: "text",
+                        value: newWorker.phone,
+                        onChange: (e) => setNewWorker({...newWorker, phone: e.target.value}),
+                        className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500",
+                        placeholder: "Ej: +34123456789"
+                      })
+                    ),
+
+                    React.createElement('div', null,
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, "Código de Rol"),
+                      React.createElement('select', {
+                        value: newWorker.roleCode,
+                        onChange: (e) => setNewWorker({...newWorker, roleCode: e.target.value}),
+                        className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      },
+                        Object.entries(roleCodes).map(([code, role]) => 
+                          React.createElement('option', { key: code, value: code }, `${code} - ${role.name}`)
+                        )
+                      )
+                    ),
+
+                    React.createElement('div', null,
                       React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, "Tipo de Contrato"),
                       React.createElement('select', {
                         value: newWorker.contractType,
                         onChange: (e) => setNewWorker({...newWorker, contractType: e.target.value}),
                         className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       },
-                        React.createElement('option', { value: "full" }, "Tiempo Completo (10 horas)"),
-                        React.createElement('option', { value: "part" }, "Medio Tiempo (5 horas)")
+                        React.createElement('option', { value: "full" }, "Tiempo Completo (48 horas/semana)"),
+                        React.createElement('option', { value: "part" }, "Medio Tiempo (24 horas/semana)")
                       )
                     ),
 
@@ -549,7 +1292,7 @@
                             key: day, 
                             className: "flex items-center space-x-2 cursor-pointer p-2 border rounded-md hover:bg-gray-50" +
                               (newWorker.multipleDaysOff?.includes(day) ? " bg-blue-50 border-blue-300" : "")
-                          },
+                          }, 
                             React.createElement('input', {
                               type: "checkbox",
                               checked: newWorker.multipleDaysOff?.includes(day) || false,
@@ -563,6 +1306,30 @@
                       React.createElement('p', { className: "text-xs text-gray-500 mt-1" },
                         "Selecciona días adicionales de descanso si es necesario"
                       )
+                    ),
+
+                    React.createElement('div', { className: "border-t pt-4 mt-4" },
+                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, "Roles Específicos por Día (Opcional)"),
+                      React.createElement('div', { className: "grid grid-cols-3 gap-3" },
+                        days.map(day =>
+                          React.createElement('div', { key: day },
+                            React.createElement('label', { className: "block text-xs font-medium text-gray-500 mb-1" }, day),
+                            React.createElement('select', {
+                              value: newWorker.dailyRoles?.[day] || 'default',
+                              onChange: (e) => handleDailyRoleChange(day, e.target.value),
+                              className: "w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
+                            },
+                              React.createElement('option', { value: 'default' }, `Default (${newWorker.roleCode})`),
+                              Object.entries(roleCodes).map(([code, role]) =>
+                                React.createElement('option', { key: code, value: code }, `${code} - ${role.name}`)
+                              )
+                            )
+                          )
+                        )
+                      ),
+                      React.createElement('p', { className: "text-xs text-gray-500 mt-2" },
+                        "Si no se especifica, se usará el rol principal."
+                      )
                     )
                   ),
 
@@ -571,7 +1338,7 @@
                       onClick: () => {
                         setShowAddWorker(false);
                         setEditingWorker(null);
-                        setNewWorker({ name: '', contractType: 'full', dayOff: 'Lunes' });
+                        setNewWorker({ name: '', contractType: 'full', dayOff: 'Lunes', multipleDaysOff: [], roleCode: 'C1', dailyRoles: {}, phone: '' });
                       },
                       className: "flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                     }, "Cancelar"),
@@ -593,8 +1360,16 @@
                   
                   React.createElement('div', { className: "space-y-4" },
                     React.createElement('div', null,
-                      React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 
-                        "Selecciona los días para la asignación aleatoria:"
+                      React.createElement('div', { className: "flex justify-between items-center mb-2" },
+                        React.createElement('label', { className: "text-sm font-medium text-gray-700" }, 
+                          "Selecciona los días para la asignación aleatoria:"
+                        ),
+                        React.createElement('button', {
+                          onClick: toggleAllDays,
+                          className: "text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-md hover:bg-purple-200 transition-colors"
+                        }, 
+                          randomDaysConfig.selectedDays.length === days.length ? "Desmarcar Todos" : "Seleccionar Todos"
+                        )
                       ),
                       React.createElement('div', { className: "grid grid-cols-2 gap-2" },
                         days.map(day =>
@@ -602,7 +1377,7 @@
                             key: day, 
                             className: "flex items-center space-x-2 cursor-pointer p-3 border rounded-md hover:bg-gray-50 transition-colors" +
                               (randomDaysConfig.selectedDays.includes(day) ? " bg-purple-50 border-purple-300" : "")
-                          },
+                          }, 
                             React.createElement('input', {
                               type: "checkbox",
                               checked: randomDaysConfig.selectedDays.includes(day),
@@ -667,11 +1442,405 @@
                 )
               ),
 
+              // --- MODAL MEJORADO PARA HORAS MANUALES ---
+              showManualHoursModal && React.createElement('div', { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" },
+                React.createElement('div', { className: "bg-white rounded-lg p-6 w-full max-w-7xl max-h-[95vh] flex flex-col" },
+                  React.createElement('div', { className: "flex items-center gap-2 mb-4" },
+                    React.createElement('span', { className: "text-2xl" }, "⏱️"),
+                    React.createElement('h3', { className: "text-lg font-semibold" }, "Asignación Manual de Horas"),
+                    React.createElement('div', { className: "ml-auto bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-sm font-medium" },
+                      "✨ Sistema Auto-Completa Horas"
+                    )
+                  ),
+                  React.createElement('div', { className: "bg-gradient-to-r from-teal-50 to-emerald-50 p-4 rounded-lg mb-4" },
+                    React.createElement('h4', { className: "font-semibold text-teal-800 mb-2" }, "💡 Instrucciones:"),
+                    React.createElement('ul', { className: "text-sm text-teal-700 space-y-1" },
+                      React.createElement('li', null, "• Configura horarios específicos que tienen prioridad sobre la asignación automática"),
+                      React.createElement('li', null, "• Deja campos en blanco para asignación automática"),
+                      React.createElement('li', null, "• El sistema completará automáticamente las horas restantes hasta alcanzar el objetivo semanal"),
+                      React.createElement('li', null, "• Los rangos de horas se basan en la configuración de apertura/cierre de cada día"),
+                      React.createElement('li', null, "• Los días libres aparecen sombreados y no pueden editarse")
+                    )
+                  ),
+                  React.createElement('div', { className: "flex-grow overflow-auto border border-gray-200 rounded-lg" },
+                    React.createElement('table', { className: "w-full" },
+                      React.createElement('thead', { className: "bg-gray-50 sticky top-0" },
+                        React.createElement('tr', null,
+                          React.createElement('th', { className: "px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 bg-white sticky left-0 z-10" }, "Trabajador"),
+                          days.map(day =>
+                            React.createElement('th', { key: day, className: "px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]" },
+                              React.createElement('div', { className: "flex flex-col" },
+                                React.createElement('span', null, day),
+                                React.createElement('span', { className: "text-[10px] text-gray-400 mt-1" },
+                                  `${customHours[day]?.open || 12}:00-${customHours[day]?.close || 22}:00`
+                                )
+                              )
+                            )
+                          )
+                        )
+                      ),
+                      React.createElement('tbody', { className: "bg-white divide-y divide-gray-200" },
+                        workers.map((worker, workerIndex) => {
+                          const targetHours = worker.contractType === 'full' ? 48 : 24;
+                          const currentWeeklyHours = schedule.length > 0 ? calculateWeeklyHours(worker.id) : 0;
+                          
+                          return React.createElement('tr', { 
+                            key: worker.id,
+                            className: workerIndex % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+                          },
+                            React.createElement('td', { className: "px-4 py-4 border-r border-gray-200 bg-white sticky left-0 z-10" },
+                              React.createElement('div', { className: "flex flex-col" },
+                                React.createElement('div', { className: "flex items-center gap-3 mb-2" },
+                                  React.createElement('div', { 
+                                    className: "w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-sm",
+                                    style: { backgroundColor: worker.color }
+                                  }, worker.roleCode),
+                                  React.createElement('div', null,
+                                    React.createElement('div', { className: "font-medium text-gray-900 text-sm" }, worker.name),
+                                    React.createElement('div', { className: "text-xs text-gray-500" },
+                                      worker.contractType === 'full' ? 'Tiempo Completo' : 'Medio Tiempo'
+                                    )
+                                  )
+                                ),
+                                React.createElement('div', { className: "bg-gray-100 rounded p-2" },
+                                  React.createElement('div', { className: "text-xs font-medium text-gray-600 mb-1" },
+                                    `Objetivo: ${targetHours}h/semana`
+                                  ),
+                                  schedule.length > 0 && React.createElement('div', null,
+                                    React.createElement('div', { className: "text-xs text-gray-600 mb-1" },
+                                      `Actual: ${currentWeeklyHours}h`
+                                    ),
+                                    React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-1.5" },
+                                      React.createElement('div', { 
+                                        className: `h-1.5 rounded-full transition-all duration-300 ${
+                                          currentWeeklyHours >= targetHours 
+                                            ? 'bg-emerald-500' 
+                                            : currentWeeklyHours >= targetHours * 0.8 
+                                              ? 'bg-yellow-500' 
+                                              : 'bg-red-400'
+                                        }`,
+                                        style: { 
+                                          width: `${Math.min((currentWeeklyHours / targetHours) * 100, 100)}%`
+                                        }
+                                      })
+                                    ),
+                                    React.createElement('div', { className: "text-[10px] text-gray-500 mt-1" },
+                                      currentWeeklyHours < targetHours 
+                                        ? `Faltan ${targetHours - currentWeeklyHours}h`
+                                        : currentWeeklyHours > targetHours 
+                                          ? `Exceso de ${currentWeeklyHours - targetHours}h`
+                                          : 'Completo ✅'
+                                    )
+                                  )
+                                )
+                              )
+                            ),
+                            days.map(day => {
+                              const isDayOff = worker.dayOff === day || worker.multipleDaysOff?.includes(day);
+                              const manualHour = manualHours[worker.id]?.[day];
+                              const open = customHours[day]?.open ?? 12;
+                              const close = customHours[day]?.close ?? 22;
+                              
+                              return React.createElement('td', { 
+                                key: day, 
+                                className: `px-3 py-4 ${isDayOff ? 'bg-gray-100' : 'bg-white'}`
+                              },
+                                isDayOff ?
+                                  React.createElement('div', { className: "flex items-center justify-center h-20" },
+                                    React.createElement('div', { className: "text-center" },
+                                      React.createElement('div', { className: "text-2xl mb-1" }, "😴"),
+                                      React.createElement('span', { className: "text-xs text-gray-500 italic font-medium" }, "Día Libre")
+                                    )
+                                  ) :
+                                  React.createElement('div', { className: "space-y-2" },
+                                    React.createElement('div', null,
+                                      React.createElement('label', { className: "block text-[10px] font-medium text-gray-500 mb-1" },
+                                        `Inicio (${open}-${close})`
+                                      ),
+                                      React.createElement('input', {
+                                        type: "number",
+                                        placeholder: `${open}`,
+                                        min: open,
+                                        max: close,
+                                        value: manualHour?.startTime ?? '',
+                                        onChange: (e) => handleManualHourChange(worker.id, day, 'startTime', e.target.value),
+                                        className: "w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                                      })
+                                    ),
+                                    React.createElement('div', null,
+                                      React.createElement('label', { className: "block text-[10px] font-medium text-gray-500 mb-1" },
+                                        `Fin (${open}-${close})`
+                                      ),
+                                      React.createElement('input', {
+                                        type: "number",
+                                        placeholder: `${close}`,
+                                        min: open,
+                                        max: close,
+                                        value: manualHour?.endTime ?? '',
+                                        onChange: (e) => handleManualHourChange(worker.id, day, 'endTime', e.target.value),
+                                        className: "w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                                      })
+                                    ),
+                                    React.createElement('div', { className: "flex items-center justify-between" },
+                                      manualHour?.startTime && manualHour?.endTime && 
+                                        React.createElement('div', { className: "bg-teal-100 text-teal-800 px-2 py-1 rounded-full text-xs font-semibold" },
+                                          `${manualHour.endTime - manualHour.startTime}h`
+                                        ),
+                                      (manualHour?.startTime || manualHour?.endTime) &&
+                                        React.createElement('button', {
+                                          onClick: () => handleManualHourChange(worker.id, day, 'startTime', '') || handleManualHourChange(worker.id, day, 'endTime', ''),
+                                          className: "text-xs text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-1 rounded transition-colors"
+                                        }, "🗑️ Limpiar")
+                                    )
+                                  )
+                              )
+                            })
+                          );
+                        })
+                      )
+                    )
+                  ),
+                  React.createElement('div', { className: "bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-lg mt-4" },
+                    React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-3 gap-4 text-sm" },
+                      React.createElement('div', { className: "flex items-center gap-2" },
+                        React.createElement('div', { className: "w-3 h-3 bg-emerald-500 rounded-full" }),
+                        React.createElement('span', { className: "text-emerald-800" }, "Horas completas")
+                      ),
+                      React.createElement('div', { className: "flex items-center gap-2" },
+                        React.createElement('div', { className: "w-3 h-3 bg-yellow-500 rounded-full" }),
+                        React.createElement('span', { className: "text-yellow-800" }, "80%+ de horas")
+                      ),
+                      React.createElement('div', { className: "flex items-center gap-2" },
+                        React.createElement('div', { className: "w-3 h-3 bg-red-400 rounded-full" }),
+                        React.createElement('span', { className: "text-red-800" }, "Horas insuficientes")
+                      )
+                    )
+                  ),
+                  React.createElement('div', { className: "flex gap-3 mt-6 pt-4 border-t border-gray-200" },
+                    React.createElement('button', {
+                      onClick: () => setShowManualHoursModal(false),
+                      className: "flex-1 px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    }, "Cancelar"),
+                    React.createElement('button', {
+                      onClick: () => {
+                        // Limpiar todas las horas manuales
+                        setManualHours({});
+                        alert('Todas las horas manuales han sido limpiadas.');
+                      },
+                      className: "px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                    }, "🗑️ Limpiar Todo"),
+                    React.createElement('button', {
+                      onClick: applyManualHours,
+                      className: "flex-1 bg-gradient-to-r from-teal-600 to-emerald-600 text-white px-6 py-3 rounded-lg hover:from-teal-700 hover:to-emerald-700 transition-all duration-300 font-medium shadow-lg"
+                    }, "✨ Guardar y Auto-Completar Horas")
+                  )
+                )
+              ),
+
+              // --- MODAL DE GESTIÓN DE ROLES ---
+              showRoleManager && React.createElement('div', { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" },
+                React.createElement('div', { className: "bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] flex flex-col" },
+                  React.createElement('div', { className: "flex items-center gap-2 mb-4" },
+                    React.createElement('span', { className: "text-2xl" }, "🏷️"),
+                    React.createElement('h3', { className: "text-lg font-semibold" }, "Gestionar Roles")
+                  ),
+                  React.createElement('div', { className: "grid md:grid-cols-2 gap-6" },
+                    // Columna del formulario
+                    React.createElement('div', { className: "bg-gray-50 p-4 rounded-lg" },
+                      React.createElement('h4', { className: "font-semibold text-gray-800 mb-3" }, roleFormData.isEditing ? 'Editar Rol' : 'Agregar Nuevo Rol'),
+                      React.createElement('form', { 
+                        onSubmit: handleRoleSubmit,
+                        className: "space-y-4"
+                      },
+                        React.createElement('div', null,
+                          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, "Código"),
+                          React.createElement('input', {
+                            type: "text",
+                            value: roleFormData.code,
+                            disabled: roleFormData.isEditing,
+                            onChange: (e) => setRoleFormData({...roleFormData, code: e.target.value.toUpperCase()}),
+                            className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-200"
+                          })
+                        ),
+                        React.createElement('div', null,
+                          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, "Nombre"),
+                          React.createElement('input', {
+                            type: "text",
+                            value: roleFormData.name,
+                            onChange: (e) => setRoleFormData({...roleFormData, name: e.target.value}),
+                            className: "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          })
+                        ),
+                        React.createElement('div', null,
+                          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, "Color"),
+                          React.createElement('input', {
+                            type: "color",
+                            value: roleFormData.color,
+                            onChange: (e) => setRoleFormData({...roleFormData, color: e.target.value}),
+                            className: "w-full h-10 px-1 py-1 border border-gray-300 rounded-md"
+                          })
+                        ),
+                        React.createElement('div', { className: "flex gap-3" },
+                          React.createElement('button', {
+                            type: "submit",
+                            className: "flex-1 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+                          }, roleFormData.isEditing ? 'Actualizar Rol' : 'Agregar Rol'),
+                          roleFormData.isEditing && React.createElement('button', {
+                            type: "button",
+                            onClick: () => setRoleFormData({ isEditing: false, code: '', name: '', color: '#808080' }),
+                            className: "px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                          }, "Cancelar")
+                        )
+                      )
+                    ),
+                    // Columna de la lista de roles
+                    React.createElement('div', { className: "flex-grow overflow-auto border-t md:border-t-0 md:border-l border-gray-200 py-4 md:py-0 md:pl-6 pr-2" },
+                      React.createElement('div', { className: "space-y-2 h-full max-h-64 md:max-h-full overflow-y-auto" },
+                        Object.values(roleCodes).map(role => 
+                          React.createElement('div', { 
+                            key: role.code, 
+                            className: "flex items-center justify-between p-2 bg-gray-50 rounded-lg border" 
+                          },
+                            React.createElement('div', { className: "flex items-center gap-3" },
+                              React.createElement('div', { className: "w-6 h-6 rounded", style: { backgroundColor: role.color } }),
+                              React.createElement('div', null,
+                                React.createElement('p', { className: "font-semibold text-gray-800" }, role.name),
+                                React.createElement('p', { className: "text-sm text-gray-600" }, role.code)
+                              )
+                            ),
+                            React.createElement('div', { className: "flex gap-2" },
+                              React.createElement('button', {
+                                onClick: () => handleEditRole(role),
+                                className: "text-blue-600 hover:text-blue-800"
+                              }, "✏️"),
+                              React.createElement('button', {
+                                onClick: () => handleDeleteRole(role.code),
+                                className: "text-red-600 hover:text-red-800"
+                              }, "🗑️")
+                            )
+                          )
+                        )
+                      )
+                    )
+                  ),
+                  React.createElement('div', { className: "flex justify-end mt-6" },
+                    React.createElement('button', {
+                      onClick: () => {
+                        setShowRoleManager(false);
+                        setRoleFormData({ isEditing: false, code: '', name: '', color: '#808080' });
+                      },
+                      className: "px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    }, "Cerrar")
+                  )
+                )
+              ),
+
+              // --- MODAL DE NOTIFICACIONES POR WHATSAPP ---
+              showNotificationModal && React.createElement('div', { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" },
+                React.createElement('div', { className: "bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] flex flex-col" },
+                  React.createElement('div', { className: "flex items-center gap-2 mb-4" },
+                    React.createElement('span', { className: "text-2xl" }, "💬"),
+                    React.createElement('h3', { className: "text-lg font-semibold" }, "Notificar Horarios por WhatsApp")
+                  ),
+                  React.createElement('p', { className: "text-sm text-gray-600 mb-4" },
+                    "Haz clic en 'Enviar' para abrir WhatsApp con el horario semanal pre-escrito para cada trabajador. Deberás confirmar el envío manualmente en la aplicación de WhatsApp."
+                  ),
+                  React.createElement('div', { className: "flex-grow overflow-auto border-t border-b py-4" },
+                    React.createElement('div', { className: "space-y-4" },
+                      workers.map(worker => {
+                        const workerShifts = schedule.filter(s => s.workerId === worker.id);
+                        let scheduleText = '';
+                        if (workerShifts.length > 0) {
+                          const shiftsByDay = days.reduce((acc, day) => {
+                            const dayShifts = workerShifts.filter(s => s.day === day);
+                            if (dayShifts.length > 0) {
+                              acc[day] = dayShifts.map(s => `${formatTime(s.startTime)} - ${formatTime(s.endTime)}`).join(', ');
+                            }
+                            return acc;
+                          }, {});
+                          scheduleText = Object.entries(shiftsByDay)
+                            .map(([day, shifts]) => `*${day}*: ${shifts}`) 
+                            .join('\n');
+                        } else {
+                          scheduleText = 'No tienes turnos asignados esta semana.';
+                        }
+
+                        const totalHours = calculateWeeklyHours(worker.id);
+                        scheduleText += `\n\n*Total de horas*: ${totalHours}h`;
+
+                        const phoneNumber = (worker.phone || '').replace(/\D/g, '');
+                        const message = encodeURIComponent(`Hola ${worker.name}, este es tu horario para la semana:\n\n${scheduleText}`);
+                        const whatsappLink = `https://wa.me/${phoneNumber}?text=${message}`;
+
+                        return React.createElement('div', { 
+                          key: worker.id, 
+                          className: "flex items-center justify-between p-3 bg-gray-50 rounded-lg border" 
+                        }, 
+                          React.createElement('div', null,
+                            React.createElement('p', { className: "font-semibold text-gray-800" }, worker.name),
+                            React.createElement('p', { className: "text-sm text-gray-600" }, worker.phone || 'Sin teléfono')
+                          ),
+                          React.createElement('a', {
+                            href: worker.phone ? whatsappLink : undefined,
+                            target: '_blank',
+                            rel: 'noopener noreferrer',
+                            onClick: (e) => {
+                              if (!worker.phone) {
+                                e.preventDefault();
+                                alert(`No se puede enviar el mensaje porque ${worker.name} no tiene un número de teléfono guardado.`);
+                              }
+                            },
+                            className: `px-4 py-2 rounded-lg text-sm font-medium text-white flex items-center gap-2 transition-colors ${ 
+                              worker.phone 
+                                ? 'bg-green-500 hover:bg-green-600' 
+                                : 'bg-gray-300 cursor-not-allowed'
+                            }`
+                          }, 
+                            React.createElement('span', null, "✔️"),
+                            'Enviar WhatsApp'
+                          )
+                        )
+                      })
+                    )
+                  ),
+                  React.createElement('div', { className: "flex justify-end mt-6" },
+                    React.createElement('button', {
+                      onClick: () => setShowNotificationModal(false),
+                      className: "px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                    }, "Cerrar")
+                  )
+                )
+              ),
+
+              // --- MODAL DE HISTORIAL DE HORARIOS ---
+              showHistory && React.createElement('div', { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" },
+                React.createElement('div', { className: "bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" },
+                  React.createElement('h3', { className: "text-lg font-semibold mb-4" }, "Historial de Horarios"),
+                  history.length === 0
+                    ? React.createElement('p', { className: "text-gray-500" }, "No hay horarios guardados.")
+                    : React.createElement('ul', { className: "divide-y" },
+                        history.map((item, idx) =>
+                          React.createElement('li', { key: idx, className: "py-2 flex justify-between items-center" },
+                            React.createElement('span', null, item.date),
+                            React.createElement('button', {
+                              onClick: () => restoreSchedule(item),
+                              className: "bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                            }, "Restaurar")
+                          )
+                        )
+                      ),
+                  React.createElement('button', {
+                    onClick: () => setShowHistory(false),
+                    className: "mt-4 px-4 py-2 border rounded hover:bg-gray-50"
+                  }, "Cerrar")
+                )
+              ),
+
               // Horario Semanal
               workers.length > 0 && React.createElement('div', { className: "mt-8" },
-                React.createElement('div', { className: "flex justify-between items-center mb-4" },
+                React.createElement('div', { className: "flex flex-wrap gap-2 justify-between items-center mb-4" },
                   React.createElement('h2', { className: "text-xl font-semibold text-gray-800" }, "Horario Semanal"),
-                  React.createElement('div', { className: "flex gap-3" },
+                  React.createElement('div', { className: "flex flex-wrap gap-2" },
                     React.createElement('button', {
                       onClick: exportToExcel,
                       className: "bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -680,42 +1849,186 @@
                       "Exportar a Excel"
                     ),
                     React.createElement('button', {
+                      onClick: exportToPDF,
+                      className: "bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "📄"),
+                      "Exportar a PDF"
+                    ),
+                    React.createElement('button', {
+                      onClick: () => setShowNotificationModal(true),
+                      className: "bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "💬"),
+                      "Notificar por WhatsApp"
+                    ),
+                    React.createElement('button', {
+                      onClick: saveCurrentSchedule,
+                      className: "bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "💾"),
+                      "Guardar Horario"
+                    ),
+                    React.createElement('button', {
+                      onClick: () => setShowHistory(true),
+                      className: "bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "📚"),
+                      "Historial"
+                    ),
+                    React.createElement('button', {
+                      onClick: () => setCalendarView(!calendarView),
+                      className: "bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition-colors flex items-center gap-2"
+                    },
+                      React.createElement('span', null, "🗓️"),
+                      calendarView ? "Vista Tabla" : "Vista Calendario"
+                    ),
+                    React.createElement('button', {
                       onClick: generateSchedule,
                       className: "bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                     },
                       React.createElement('span', null, "🔄"),
                       "Regenerar Horario"
-                    ),
-                    React.createElement('div', { className: "text-sm text-gray-600 flex items-center gap-1" },
-                      React.createElement('span', null, "ℹ️"),
-                      "Los horarios se actualizan automáticamente al cambiar la configuración"
                     )
                   )
                 ),
-
-                React.createElement('div', { className: "grid gap-6" },
+                // --- VISTA CALENDARIO ---
+                calendarView
+                ? React.createElement('div', { className: "overflow-x-auto" },
+                    React.createElement('table', { className: "min-w-full border" },
+                      React.createElement('thead', null,
+                        React.createElement('tr', null,
+                          days.map(day => React.createElement('th', { key: day, className: "border px-4 py-2" }, day))
+                        )
+                      ),
+                      React.createElement('tbody', null,
+                        Array.from({ length: Math.max(...days.map(day => getScheduleForDay(day).length)) }).map((_, rowIdx) =>
+                          React.createElement('tr', { key: rowIdx },
+                            days.map(day => {
+                              const shifts = getScheduleForDay(day);
+                              const shift = shifts[rowIdx];
+                              return React.createElement('td', { key: day, className: "border px-4 py-2" },
+                                shift
+                                  ? React.createElement('div', { className: "flex flex-col items-center" },
+                                      React.createElement('span', { style: { color: shift.color, fontWeight: 'bold' } }, shift.workerName),
+                                      React.createElement('span', { className: "text-xs" }, `${formatTime(shift.startTime)}-${formatTime(shift.endTime)}`),
+                                      React.createElement('span', { className: "text-xs" }, shift.roleCode)
+                                    )
+                                  : null
+                              );
+                            })
+                          )
+                        )
+                      )
+                    )
+                  )
+                : React.createElement('div', { className: "grid gap-6" },
                   days.map(day => {
                     const dayShifts = getScheduleForDay(day);
+                    const manualShifts = dayShifts.filter(shift => shift.isManual);
+                    const autoShifts = dayShifts.filter(shift => !shift.isManual && !shift.isCompletionShift);
+                    const completionShifts = dayShifts.filter(shift => shift.isCompletionShift);
+                    const required = getRequiredWorkers(day);
+                    const dayType = dayTypes[day];
+                    
                     return React.createElement('div', { key: day, className: "bg-white border border-gray-200 rounded-lg overflow-hidden" },
-                      React.createElement('div', { className: "bg-gray-100 px-4 py-3" },
-                        React.createElement('h3', { className: "font-semibold text-gray-800" }, day)
+                      React.createElement('div', { className: `px-4 py-3 ${dayType === 'alto' ? 'bg-red-100' : 'bg-green-100'}` },
+                        React.createElement('div', { className: "flex justify-between items-center" },
+                          React.createElement('h3', { className: "font-semibold text-gray-800" }, day),
+                          React.createElement('div', { className: "flex items-center gap-4 text-sm" },
+                            React.createElement('span', { className: `px-2 py-1 rounded text-xs font-semibold ${dayType === 'alto' ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'}` },
+                              dayType === 'alto' ? 'DÍA ALTO' : 'DÍA BAJO'
+                            ),
+                            React.createElement('span', { className: "text-gray-600" },
+                              `Requerido: ${required.opening} apertura + ${required.closing} cierre`
+                            ),
+                            React.createElement('span', { className: "text-blue-600 font-medium" },
+                              `Apertura: ${customHours[day]?.open || 12}:00 - Cierre: ${customHours[day]?.close || 22}:00`
+                            )
+                          )
+                        )
                       ),
                       React.createElement('div', { className: "p-4" },
                         dayShifts.length === 0 ? 
                           React.createElement('p', { className: "text-gray-500 italic" }, "No hay trabajadores asignados") :
-                          React.createElement('div', { className: "space-y-3" },
-                            dayShifts.map((shift, index) =>
-                              React.createElement('div', { key: index, className: "flex items-center justify-between p-3 bg-gray-50 rounded-md" },
-                                React.createElement('div', { className: "flex items-center gap-4" },
-                                  React.createElement('div', { className: "font-medium text-gray-800" }, shift.workerName),
-                                  React.createElement('div', { className: "text-sm text-gray-600" },
-                                    `${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}`
+                          React.createElement('div', { className: "space-y-6" },
+                            manualShifts.length > 0 && React.createElement('div', null,
+                              React.createElement('div', { className: "flex items-center gap-2 mb-3" },
+                                React.createElement('span', { className: "text-sm font-medium text-teal-700 bg-teal-100 px-2 py-1 rounded-full" }, "⏱️ Horarios Manuales")
+                              ),
+                              React.createElement('div', { className: "grid gap-2" },
+                                manualShifts.map((shift, index) =>
+                                  React.createElement('div', { key: `manual-${index}`, className: "flex items-center justify-between p-3 bg-teal-50 rounded-md border-l-4 border-teal-400" },
+                                    React.createElement('div', { className: "flex items-center gap-4" },
+                                      React.createElement('div', { 
+                                        className: "w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold",
+                                        style: { backgroundColor: shift.color }
+                                      }, shift.roleCode),
+                                      React.createElement('div', { className: "font-medium text-teal-800" }, shift.workerName),
+                                      React.createElement('div', { className: "text-sm text-teal-600" },
+                                        `${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}`
+                                      )
+                                    ),
+                                    React.createElement('div', { className: "text-right" },
+                                      React.createElement('div', { className: "text-sm font-medium text-teal-700" }, "Manual"),
+                                      React.createElement('div', { className: "text-xs text-teal-600" },
+                                        `${shift.endTime - shift.startTime}h | Total: ${calculateWeeklyHours(shift.workerId)}h`
+                                      )
+                                    )
                                   )
-                                ),
-                                React.createElement('div', { className: "text-right" },
-                                  React.createElement('div', { className: "text-sm font-medium text-blue-600" }, shift.contractType),
-                                  React.createElement('div', { className: "text-xs text-gray-500" },
-                                    `Descanso: ${shift.dayOff}`
+                                )
+                              )
+                            ),
+                            autoShifts.length > 0 && React.createElement('div', null,
+                              React.createElement('div', { className: "flex items-center gap-2 mb-3" },
+                                React.createElement('span', { className: "text-sm font-medium text-blue-700 bg-blue-100 px-2 py-1 rounded-full" }, "🤖 Horarios Automáticos")
+                              ),
+                              React.createElement('div', { className: "grid gap-2" },
+                                autoShifts.map((shift, index) =>
+                                  React.createElement('div', { key: `auto-${index}`, className: "flex items-center justify-between p-3 bg-gray-50 rounded-md border-l-4", style: { borderLeftColor: shift.color } },
+                                    React.createElement('div', { className: "flex items-center gap-4" },
+                                      React.createElement('div', { 
+                                        className: "w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold",
+                                        style: { backgroundColor: shift.color }
+                                      }, shift.roleCode),
+                                      React.createElement('div', { className: "font-medium", style: { color: shift.color } }, shift.workerName),
+                                      React.createElement('div', { className: "text-sm text-gray-600" },
+                                        `${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}`
+                                      )
+                                    ),
+                                    React.createElement('div', { className: "text-right" },
+                                      React.createElement('div', { className: "text-sm font-medium text-blue-600" }, shift.contractType),
+                                      React.createElement('div', { className: "text-xs text-gray-500" },
+                                        `${shift.endTime - shift.startTime}h | Total: ${calculateWeeklyHours(shift.workerId)}h`
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            ),
+                            completionShifts.length > 0 && React.createElement('div', null,
+                              React.createElement('div', { className: "flex items-center gap-2 mb-3" },
+                                React.createElement('span', { className: "text-sm font-medium text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full" }, "✨ Completar Horas")
+                              ),
+                              React.createElement('div', { className: "grid gap-2" },
+                                completionShifts.map((shift, index) =>
+                                  React.createElement('div', { key: `completion-${index}`, className: "flex items-center justify-between p-3 bg-emerald-50 rounded-md border-l-4 border-emerald-400" },
+                                    React.createElement('div', { className: "flex items-center gap-4" },
+                                      React.createElement('div', { 
+                                        className: "w-8 h-8 rounded flex items-center justify-center text-white text-xs font-bold",
+                                        style: { backgroundColor: shift.color }
+                                      }, shift.roleCode),
+                                      React.createElement('div', { className: "font-medium text-emerald-800" }, shift.workerName),
+                                      React.createElement('div', { className: "text-sm text-emerald-600" },
+                                        `${formatTime(shift.startTime)} - ${formatTime(shift.endTime)}`
+                                      )
+                                    ),
+                                    React.createElement('div', { className: "text-right" },
+                                      React.createElement('div', { className: "text-sm font-medium text-emerald-700" }, shift.contractType),
+                                      React.createElement('div', { className: "text-xs text-emerald-600" },
+                                        `${shift.endTime - shift.startTime}h | Total: ${calculateWeeklyHours(shift.workerId)}h`
+                                      )
+                                    )
                                   )
                                 )
                               )
