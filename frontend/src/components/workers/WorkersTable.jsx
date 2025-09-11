@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
 import { DataContext } from '../../context/DataContext';
+import { Pencil, Trash2 } from 'lucide-react';
 
 const WorkersTable = ({ onEdit }) => {
   const { workers, removeWorker, roles } = useContext(DataContext);
@@ -34,19 +35,18 @@ const WorkersTable = ({ onEdit }) => {
                     onClick={() => onEdit(worker)}
                     className="p-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
                   >
-                    <span>✏️</span>
+                    <Pencil size={16} />
                   </button>
                   <button
                     onClick={() => removeWorker(worker._id)}
                     className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
                   >
-                    <span>🗑️</span>
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </td>
             </tr>
-          )})}
-        </tbody>
+          )})}</tbody>
       </table>
     </div>
   );

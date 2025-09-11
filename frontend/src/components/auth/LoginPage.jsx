@@ -17,7 +17,6 @@ const LoginPage = ({ onLogin }) => {
 
       if (data.success) {
         localStorage.setItem('token', data.data.token);
-        localStorage.setItem('isAuthenticated', 'true');
         onLogin();
         toast.success('Inicio de sesión exitoso!');
       } else {

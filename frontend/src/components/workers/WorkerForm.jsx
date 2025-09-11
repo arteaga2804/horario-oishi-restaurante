@@ -1,6 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { DataContext } from '../../context/DataContext';
 import MultiSelectDropdown from '../common/MultiSelectDropdown';
+import { Save, Plus, X } from 'lucide-react';
 
 const WorkerForm = ({ onSave, onCancel, editingWorker }) => {
   const { roles, addWorker, updateWorkerData } = useContext(DataContext);
@@ -110,10 +111,12 @@ const WorkerForm = ({ onSave, onCancel, editingWorker }) => {
       
       <div className="flex gap-2 items-end">
         <button type="submit" className="flex-1 bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2">
+          {editingWorker ? <Save size={20} /> : <Plus size={20} />}
           {editingWorker ? 'Actualizar' : 'Agregar'}
         </button>
         {editingWorker && (
-          <button type="button" onClick={onCancel} className="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+          <button type="button" onClick={onCancel} className="px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 flex items-center justify-center gap-2">
+            <X size={20} />
             Cancelar
           </button>
         )}

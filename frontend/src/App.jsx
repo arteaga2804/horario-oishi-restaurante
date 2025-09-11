@@ -1,25 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import TabButton from './components/common/TabButton';
 import WorkersTab from './components/workers/WorkersTab';
 import RolesTab from './components/roles/RolesTab';
 import ConfigTab from './components/config/ConfigTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
-import ExportTab from './components/common/ExportTab';
 import LoginPage from './components/auth/LoginPage';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-
-// Placeholder icons
-const Users = ({ size }) => <span style={{ fontSize: size ? size + 'px' : '20px' }}>👥</span>;
-const Settings = ({ size }) => <span style={{ fontSize: size ? size + 'px' : '20px' }}>⚙️</span>;
-const Calendar = ({ size }) => <span style={{ fontSize: size ? size + 'px' : '20px' }}>📅</span>;
-const Clock = ({ size }) => <span style={{ fontSize: size ? size + 'px' : '20px' }}>🕐</span>;
-const FileDown = ({ size }) => <span style={{ fontSize: size ? size + 'px' : '20px' }}>📥</span>;
-const LogOut = ({ size }) => <span style={{ fontSize: size ? size + 'px' : '20px' }}>🚪</span>;
+import { Users, Settings, Calendar, Clock, LogOut, RefreshCw } from 'lucide-react';
+import { DataContext } from './context/DataContext';
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('workers');
+  const { refreshData } = useContext(DataContext);
 
   useEffect(() => {
     const token = localStorage.getItem('token'); // Use token for auth
@@ -33,7 +27,6 @@ const App = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
-    localStorage.removeItem('isAuthenticated'); // Remove old flag as well
     setIsAuthenticated(false);
   };
 
@@ -46,7 +39,6 @@ const App = () => {
     roles: { label: 'Roles', icon: Settings, component: <RolesTab /> },
     config: { label: 'Configuración', icon: Calendar, component: <ConfigTab /> },
     schedule: { label: 'Horarios', icon: Clock, component: <ScheduleTab /> },
-    export: { label: 'Exportar', icon: FileDown, component: <ExportTab /> },
   };
 
   return (
@@ -54,13 +46,22 @@ const App = () => {
       <div className="max-w-7xl mx-auto">
         <header className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800">Sistema de Gestión de Horarios</h1>
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white bg-red-500 hover:bg-red-600 transition-all"
-          >
-            <LogOut size={20} />
-            Cerrar Sesión
-          </button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={refreshData}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white bg-blue-500 hover:bg-blue-600 transition-all"
+            >
+              <RefreshCw size={20} />
+              Actualizar Datos
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white bg-red-500 hover:bg-red-600 transition-all"
+            >
+              <LogOut size={20} />
+              Cerrar Sesión
+            </button>
+          </div>
         </header>
         
         <div className="flex flex-wrap gap-2 mb-6">

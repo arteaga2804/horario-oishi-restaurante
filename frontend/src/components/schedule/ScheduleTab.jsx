@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { DataContext } from '../../context/DataContext';
 import EditAssignmentModal from './EditAssignmentModal';
 import AddAssignmentModal from './AddAssignmentModal';
+import { Calendar, FileDown, MessageCircle, AlertTriangle, PlusCircle } from 'lucide-react';
 
 const ScheduleTab = () => {
   const { schedule, roles, workers, dailyStaffConfig, generateSchedule, exportToPDF, exportToExcel, weeklyHours, isLoading, updateAssignment, swapAssignments, createAssignment } = useContext(DataContext);
@@ -129,9 +130,9 @@ const ScheduleTab = () => {
             <button 
                 key={`empty-${dayIndex}-${shiftType}-${idx}`}
                 onClick={() => handleAddClick(dayIndex, shiftType)}
-                className="px-2 py-1 rounded text-gray-500 bg-gray-100 border-dashed border-2 border-gray-300 text-xs font-medium shadow-sm truncate text-center w-full hover:bg-gray-200"
+                className="px-2 py-1 rounded text-gray-500 bg-gray-100 border-dashed border-2 border-gray-300 text-xs font-medium shadow-sm truncate text-center w-full hover:bg-gray-200 flex items-center justify-center gap-1"
             >
-                + Agregar
+                <PlusCircle size={12} /> Agregar
             </button>
         ))}
       </div>
@@ -164,7 +165,7 @@ const ScheduleTab = () => {
           disabled={isLoading}
           className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 flex items-center gap-2 disabled:bg-gray-400"
         >
-          <span>📅</span>
+          <Calendar size={20} />
           {isLoading ? 'Generando...' : 'Generar Horario Completo'}
         </button>
         
@@ -172,7 +173,7 @@ const ScheduleTab = () => {
           onClick={exportToPDF}
           className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 flex items-center gap-2"
         >
-          <span>⬇️</span>
+          <FileDown size={20} />
           Exportar PDF
         </button>
         
@@ -180,7 +181,7 @@ const ScheduleTab = () => {
           onClick={exportToExcel}
           className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 flex items-center gap-2"
         >
-          <span>⬇️</span>
+          <FileDown size={20} />
           Exportar Excel
         </button>
       </div>
@@ -190,7 +191,7 @@ const ScheduleTab = () => {
           {validateCoverage().length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-2 text-red-800 font-semibold mb-2">
-                <span>⚠️</span>
+                <AlertTriangle size={20} />
                 Alertas de Cobertura
               </div>
               <ul className="list-disc list-inside text-red-700">
@@ -280,7 +281,7 @@ const ScheduleTab = () => {
                       title={`Enviar horario a ${worker.name} por WhatsApp`}
                       disabled={!worker.phone}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                      <MessageCircle size={16} />
                     </button>
                   </div>
                   <div className="text-sm text-gray-600">

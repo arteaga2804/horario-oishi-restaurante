@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import WorkerForm from './WorkerForm';
 import WorkersTable from './WorkersTable';
 import { DataContext } from '../../context/DataContext';
+import { Plus, Shuffle, CalendarOff } from 'lucide-react';
 
 const WorkersTab = () => {
   const { addWorker, updateWorkerData, assignRandomRoles, assignRandomDaysOff } = useContext(DataContext);
@@ -42,21 +43,21 @@ const WorkersTab = () => {
           onClick={handleAddNew}
           className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 flex items-center gap-2"
         >
-          <span>➕</span>
+          <Plus size={20} />
           Agregar Trabajador
         </button>
         <button
           onClick={assignRandomRoles}
           className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 flex items-center gap-2"
         >
-          <span>🎲</span>
+          <Shuffle size={20} />
           Asignar Roles Aleatorios
         </button>
         <button
           onClick={assignRandomDaysOff}
           className="bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600 flex items-center gap-2"
         >
-          <span>🌴</span>
+          <CalendarOff size={20} />
           Asignar Días Libres Aleatorios
         </button>
       </div>

@@ -1,5 +1,6 @@
 import React, { useContext, useState } from 'react';
 import { DataContext } from '../../context/DataContext';
+import { RefreshCw, Save, Plus, Pencil, Trash2 } from 'lucide-react';
 
 const RolesTab = () => {
     const { roles, addRole, removeRole, updateRole, refreshData } = useContext(DataContext);
@@ -32,15 +33,6 @@ const RolesTab = () => {
     <div>
             <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Roles y Códigos</h2>
-        <button 
-          onClick={refreshData} 
-          className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded flex items-center"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.899 2.802 1 1 0 11-1.99.198A5.002 5.002 0 006 7.101V9a1 1 0 11-2 0V3a1 1 0 011-1zm12 14a1 1 0 01-1-1v-2.101a7.002 7.002 0 01-11.899-2.802 1 1 0 111.99-.198A5.002 5.002 0 0014 12.899V15a1 1 0 01-1 1z" clipRule="evenodd" />
-          </svg>
-          Actualizar
-        </button>
       </div>
       
       {/* Formulario de rol */}
@@ -85,7 +77,7 @@ const RolesTab = () => {
                 onClick={handleAddOrUpdateRole}
                 className="flex-1 bg-green-500 text-white p-2 rounded-lg hover:bg-green-600 flex items-center justify-center gap-2"
               >
-                <span>💾</span>
+                <Save size={18} />
                 Actualizar
               </button>
               <button
@@ -100,7 +92,7 @@ const RolesTab = () => {
               onClick={handleAddOrUpdateRole}
               className="flex-1 bg-blue-500 text-white p-2 rounded-lg hover:bg-blue-600 flex items-center justify-center gap-2"
             >
-              <span>➕</span>
+              <Plus size={18} />
               Agregar Rol
             </button>
           )}
@@ -126,13 +118,13 @@ const RolesTab = () => {
                 onClick={() => handleEditClick(role)}
                 className="p-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
               >
-                <span>✏️</span>
+                <Pencil size={16} />
               </button>
               <button
                 onClick={() => removeRole(role._id)}
                 className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
               >
-                <span>🗑️</span>
+                <Trash2 size={16} />
               </button>
             </div>
           </div>
