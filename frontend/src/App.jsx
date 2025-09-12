@@ -5,6 +5,7 @@ import RolesTab from './components/roles/RolesTab';
 import ConfigTab from './components/config/ConfigTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
 import LoginPage from './components/auth/LoginPage';
+import RegisterPage from './components/auth/RegisterPage'; // Import the new page
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { Users, Settings, Calendar, Clock, LogOut, RefreshCw } from 'lucide-react';
@@ -13,25 +14,31 @@ import { DataContext } from './context/DataContext';
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('workers');
+  const [authView, setAuthView] = useState('login'); // 'login' or 'register'
   const { refreshData } = useContext(DataContext);
 
   useEffect(() => {
-    const token = localStorage.getItem('token'); // Use token for auth
-    setIsAuthenticated(!!token);
+    const token = localStorage.getItem('token');
+    if (token) {
+      setIsAuthenticated(true);
+    }
   }, []);
 
   const handleLogin = () => {
-    // isAuthenticated is now derived from token presence in localStorage
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     setIsAuthenticated(false);
+    setAuthView('login'); // Default to login view on logout
   };
 
   if (!isAuthenticated) {
-    return <LoginPage onLogin={handleLogin} />;
+    if (authView === 'login') {
+      return <LoginPage onLogin={handleLogin} onNavigateToRegister={() => setAuthView('register')} />;
+    }
+    return <RegisterPage onNavigateToLogin={() => setAuthView('login')} />;
   }
 
   const TABS = {
