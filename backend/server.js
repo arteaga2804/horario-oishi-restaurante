@@ -34,7 +34,7 @@ const app = express();
 app.use(express.json());
 
 // Enable CORS
-app.use(cors({ origin: 'https://horario-oishi-restaurante-frontend-delta.vercel.app' }));
+app.use(cors());
 
 app.use('/api/workers', require('./routes/workers.routes'));
 app.use('/api/roles', require('./routes/roles.routes'));
