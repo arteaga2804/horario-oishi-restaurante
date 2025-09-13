@@ -5,12 +5,12 @@ const {
   updateRole,
   deleteRole
 } = require('../controllers/role.controller');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.route('/').get(protect, getRoles).post(protect, createRole);
+router.route('/').get(protect, getRoles).post(protect, authorize('admin'), createRole);
 
-router.route('/:id').put(protect, updateRole).delete(protect, deleteRole);
+router.route('/:id').put(protect, authorize('admin'), updateRole).delete(protect, authorize('admin'), deleteRole);
 
 module.exports = router;

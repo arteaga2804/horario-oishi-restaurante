@@ -16,6 +16,7 @@ export const DataProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [user, setUser] = useState(null); // Add user state
 
   const fetchSchedule = async () => {
     try {
@@ -402,6 +403,8 @@ export const DataProvider = ({ children }) => {
     updateAssignment,
     swapAssignments,
     createAssignment,
+    user, // Expose user
+    setUser, // Expose setUser
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

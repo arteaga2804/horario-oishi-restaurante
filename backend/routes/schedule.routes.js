@@ -6,13 +6,13 @@ const {
   swapAssignments,
   createAssignment
 } = require('../controllers/schedule.controller');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.route('/').get(protect, getSchedule).post(protect, createAssignment);
-router.route('/generate').post(protect, generateSchedule);
-router.route('/:id').put(protect, updateAssignment);
-router.route('/swap').post(protect, swapAssignments);
+router.route('/').get(protect, getSchedule).post(protect, authorize('admin'), createAssignment);
+router.route('/generate').post(protect, authorize('admin'), generateSchedule);
+router.route('/:id').put(protect, authorize('admin'), updateAssignment);
+router.route('/swap').post(protect, authorize('admin'), swapAssignments);
 
 module.exports = router;

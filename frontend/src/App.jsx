@@ -11,26 +11,46 @@ import 'react-toastify/dist/ReactToastify.css';
 import { Users, Settings, Calendar, Clock, LogOut, RefreshCw } from 'lucide-react';
 import { DataContext } from './context/DataContext';
 
+import { getMe } from './services/api'; // Import getMe
+
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('workers');
   const [authView, setAuthView] = useState('login'); // 'login' or 'register'
-  const { refreshData } = useContext(DataContext);
+  const { refreshData, setUser, user } = useContext(DataContext); // Get user from context
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      setIsAuthenticated(true);
+      const fetchUser = async () => {
+        try {
+          const res = await getMe();
+          const userData = await res.json();
+          if (userData.success) {
+            setUser(userData.data);
+            setIsAuthenticated(true);
+          } else {
+            // Token is invalid or expired
+            localStorage.removeItem('token');
+          }
+        } catch (error) {
+          // Server is down or other network error
+          localStorage.removeItem('token');
+        }
+      };
+      fetchUser();
     }
   }, []);
 
-  const handleLogin = () => {
+  const handleLogin = (userData) => {
+    setUser(userData);
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     setIsAuthenticated(false);
+    setUser(null); // Clear user state
     setAuthView('login'); // Default to login view on logout
   };
 
@@ -44,9 +64,13 @@ const App = () => {
   const TABS = {
     workers: { label: 'Trabajadores', icon: Users, component: <WorkersTab /> },
     roles: { label: 'Roles', icon: Settings, component: <RolesTab /> },
-    config: { label: 'Configuración', icon: Calendar, component: <ConfigTab /> },
     schedule: { label: 'Horarios', icon: Clock, component: <ScheduleTab /> },
   };
+
+  // Add admin-only tabs
+  if (user && user.role === 'admin') {
+    TABS.config = { label: 'Configuración', icon: Calendar, component: <ConfigTab /> };
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -54,6 +78,11 @@ const App = () => {
         <header className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-800">Sistema de Gestión de Horarios</h1>
           <div className="flex items-center gap-4">
+            {user && (
+              <span className="text-gray-600">
+                Hola, <span className="font-bold">{user.username}</span> ({user.role})
+              </span>
+            )}
             <button 
               onClick={refreshData}
               className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white bg-blue-500 hover:bg-blue-600 transition-all"

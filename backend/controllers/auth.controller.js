@@ -71,3 +71,11 @@ exports.loginUser = async (req, res, next) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+// @desc    Get current user profile
+// @route   GET /api/auth/me
+// @access  Private
+exports.getMe = async (req, res, next) => {
+    // req.user is set by the protect middleware
+    res.status(200).json({ success: true, data: req.user });
+};

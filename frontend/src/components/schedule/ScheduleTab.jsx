@@ -5,11 +5,12 @@ import AddAssignmentModal from './AddAssignmentModal';
 import { Calendar, FileDown, MessageCircle, AlertTriangle, PlusCircle } from 'lucide-react';
 
 const ScheduleTab = () => {
-  const { schedule, roles, workers, dailyStaffConfig, generateSchedule, exportToPDF, exportToExcel, weeklyHours, isLoading, updateAssignment, swapAssignments, createAssignment } = useContext(DataContext);
+  const { schedule, roles, workers, dailyStaffConfig, generateSchedule, exportToPDF, exportToExcel, weeklyHours, isLoading, updateAssignment,
+swapAssignments, createAssignment, user } = useContext(DataContext);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
-  const [addingToSlot, setAddingToSlot] = useState(null); // { day: number, shift: 'opening' | 'closing' }
+  const [addingToSlot, setAddingToSlot] = useState(null);
 
   const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   const hoursByShift = { opening: 6, closing: 4 };
@@ -17,13 +18,17 @@ const ScheduleTab = () => {
   const highDays = dailyStaffConfig.map((d, i) => d.demand === 'Alto' ? i : -1).filter(i => i !== -1);
 
   const handleAssignmentClick = (assignment) => {
-    setEditingAssignment(assignment);
-    setIsEditModalOpen(true);
+    if (user && user.role === 'admin') {
+      setEditingAssignment(assignment);
+      setIsEditModalOpen(true);
+    }
   };
 
   const handleAddClick = (day, shift) => {
-    setAddingToSlot({ day, shift });
-    setIsAddModalOpen(true);
+    if (user && user.role === 'admin') {
+      setAddingToSlot({ day, shift });
+      setIsAddModalOpen(true);
+    }
   };
 
   const handleCloseModals = () => {
@@ -47,7 +52,7 @@ const ScheduleTab = () => {
     const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
     const weekNumber = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
     const weekId = `${now.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
-    
+
     createAssignment({ ...newAssignment, weekId });
   };
 
@@ -98,7 +103,7 @@ const ScheduleTab = () => {
     } else {
       message += 'No tienes turnos asignados esta semana.';
     }
-    
+
     const totalHours = weeklyHours[worker._id] || 0;
     message += `\n\nTotal de horas: ${totalHours}h.`;
 
@@ -119,18 +124,20 @@ const ScheduleTab = () => {
           <button
             key={assignment._id || `assign-${idx}`}
             onClick={() => handleAssignmentClick(assignment)}
-            className="px-2 py-1 rounded text-white text-xs font-medium shadow-sm truncate text-left w-full"
+            className={`px-2 py-1 rounded text-white text-xs font-medium shadow-sm truncate text-left w-full ${user && user.role === 'admin' ? 
+'cursor-pointer' : 'cursor-default'}`}
             style={{ backgroundColor: assignment.role?.color || '#888' }}
             title={`${assignment.role?.name} - ${assignment.worker?.name}`}
           >
             <span className="font-bold">{assignment.role?.code}</span> - <span>{assignment.worker?.name} ({hoursByShift[shiftType]}h)</span>
           </button>
         ))}
-        {Array.from({ length: emptySlots > 0 ? emptySlots : 0 }).map((_, idx) => (
-            <button 
+        {user && user.role === 'admin' && Array.from({ length: emptySlots > 0 ? emptySlots : 0 }).map((_, idx) => (
+            <button
                 key={`empty-${dayIndex}-${shiftType}-${idx}`}
                 onClick={() => handleAddClick(dayIndex, shiftType)}
-                className="px-2 py-1 rounded text-gray-500 bg-gray-100 border-dashed border-2 border-gray-300 text-xs font-medium shadow-sm truncate text-center w-full hover:bg-gray-200 flex items-center justify-center gap-1"
+                className="px-2 py-1 rounded text-gray-500 bg-gray-100 border-dashed border-2 border-gray-300 text-xs font-medium shadow-sm
+truncate text-center w-full hover:bg-gray-200 flex items-center justify-center gap-1"
             >
                 <PlusCircle size={12} /> Agregar
             </button>
@@ -142,7 +149,7 @@ const ScheduleTab = () => {
   return (
     <div>
       {isEditModalOpen && (
-        <EditAssignmentModal 
+        <EditAssignmentModal
           assignment={editingAssignment}
           onClose={handleCloseModals}
           onSave={handleReassignSave}
@@ -150,7 +157,7 @@ const ScheduleTab = () => {
         />
       )}
       {isAddModalOpen && (
-        <AddAssignmentModal 
+        <AddAssignmentModal
           day={addingToSlot.day}
           shift={addingToSlot.shift}
           onClose={handleCloseModals}
@@ -158,33 +165,35 @@ const ScheduleTab = () => {
         />
       )}
       <h2 className="text-2xl font-bold mb-6">Generación de Horarios</h2>
-      
-      <div className="flex flex-wrap gap-4 mb-6">
-        <button
-          onClick={generateSchedule}
-          disabled={isLoading}
-          className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 flex items-center gap-2 disabled:bg-gray-400"
-        >
-          <Calendar size={20} />
-          {isLoading ? 'Generando...' : 'Generar Horario Completo'}
-        </button>
-        
-        <button
-          onClick={exportToPDF}
-          className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 flex items-center gap-2"
-        >
-          <FileDown size={20} />
-          Exportar PDF
-        </button>
-        
-        <button
-          onClick={exportToExcel}
-          className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 flex items-center gap-2"
-        >
-          <FileDown size={20} />
-          Exportar Excel
-        </button>
-      </div>
+
+      {user && user.role === 'admin' && (
+        <div className="flex flex-wrap gap-4 mb-6">
+          <button
+            onClick={generateSchedule}
+            disabled={isLoading}
+            className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 flex items-center gap-2 disabled:bg-gray-400"
+          >
+            <Calendar size={20} />
+            {isLoading ? 'Generando...' : 'Generar Horario Completo'}
+          </button>
+
+          <button
+            onClick={exportToPDF}
+            className="bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-600 flex items-center gap-2"
+          >
+            <FileDown size={20} />
+            Exportar PDF
+          </button>
+
+          <button
+            onClick={exportToExcel}
+            className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 flex items-center gap-2"
+          >
+            <FileDown size={20} />
+            Exportar Excel
+          </button>
+        </div>
+      )}
 
       {Object.keys(schedule).length > 0 && (
         <div className="mb-6">
@@ -230,8 +239,8 @@ const ScheduleTab = () => {
             ))}
 
             {daysOfWeek.map((day, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className={`relative min-h-[250px] border-b border-r border-gray-300 ${highDays.includes(index) ? 'bg-red-50' : 'bg-white'}`}
               >
                 <div className="p-2">
@@ -263,11 +272,11 @@ const ScheduleTab = () => {
               const requiredHours = worker.weeklyHours;
               const isComplete = assignedHours === requiredHours;
               const isOvertime = assignedHours > requiredHours;
-              
+
               return (
                 <div
                   key={worker._id}
-                  className={`p-3 rounded border-2 ${ 
+                  className={`p-3 rounded border-2 ${
                     isComplete ? 'border-green-500 bg-green-50' :
                     isOvertime ? 'border-red-500 bg-red-50' :
                     'border-yellow-500 bg-yellow-50'
@@ -289,7 +298,7 @@ const ScheduleTab = () => {
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                     <div
-                      className={`h-2 rounded-full ${ 
+                      className={`h-2 rounded-full ${
                         isComplete ? 'bg-green-500' :
                         isOvertime ? 'bg-red-500' :
                         'bg-yellow-500'

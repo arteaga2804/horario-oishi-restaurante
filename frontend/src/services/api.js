@@ -77,3 +77,5 @@ export const loginUser = (userData) => fetch(`${API_URL}/auth/login`, {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(userData)
 });
+
+export const getMe = () => fetchWithAuth(`${API_URL}/auth/me`);
