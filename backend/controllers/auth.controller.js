@@ -11,15 +11,18 @@ const generateToken = (id) => {
 // @access  Public
 exports.registerUser = async (req, res, next) => {
   const { username, password, role } = req.body;
+  console.log('Register attempt for user:', username, 'with role:', role);
 
   try {
     // Check if user already exists
     const userExists = await User.findOne({ username });
     if (userExists) {
+      console.log('User already exists:', username);
       return res.status(400).json({ success: false, error: 'User already exists' });
     }
 
     // Create user
+    console.log('Creating new user...');
     const user = await User.create({
       username,
       password,
@@ -27,6 +30,7 @@ exports.registerUser = async (req, res, next) => {
     });
 
     if (user) {
+      console.log('User created successfully:', user.username);
       res.status(201).json({
         success: true,
         data: {
@@ -37,9 +41,11 @@ exports.registerUser = async (req, res, next) => {
         },
       });
     } else {
+      console.log('Invalid user data during creation');
       res.status(400).json({ success: false, error: 'Invalid user data' });
     }
   } catch (err) {
+    console.error('Error during user registration:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 };
