@@ -103,7 +103,7 @@ export const DataProvider = ({ children }) => {
   const removeRole = async (id) => {
     const res = await api.deleteRole(id);
     if (res.ok) {
-      setRoles(roles.filter(r => r._id !== id));
+      setRoles(prevRoles => prevRoles.filter(r => r._id !== id));
       toast.info("Rol eliminado correctamente.");
     } else {
       const data = await res.json();
@@ -126,7 +126,7 @@ export const DataProvider = ({ children }) => {
     const res = await api.addWorker(worker);
     const data = await res.json();
     if (data.success) {
-      await refreshData();
+      setWorkers(prevWorkers => [...prevWorkers, data.data]);
       toast.success("Trabajador agregado correctamente.");
     } else {
       toast.error(`Error al agregar trabajador: ${data.error}`);
@@ -136,7 +136,7 @@ export const DataProvider = ({ children }) => {
   const removeWorker = async (id) => {
     const res = await api.deleteWorker(id);
     if (res.ok) {
-      await refreshData();
+      setWorkers(prevWorkers => prevWorkers.filter(w => w._id !== id));
       toast.info("Trabajador eliminado correctamente.");
     } else {
       const data = await res.json();
@@ -154,7 +154,7 @@ export const DataProvider = ({ children }) => {
       const res = await api.updateWorker(id, workerToSend);
       const data = await res.json();
       if (data.success) {
-        await refreshData();
+        setWorkers(prevWorkers => prevWorkers.map(w => (w._id === id ? data.data : w)));
         toast.success("Trabajador actualizado correctamente.");
       } else {
         toast.error(`Error al actualizar trabajador: ${data.error}`);

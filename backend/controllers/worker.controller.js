@@ -17,7 +17,8 @@ exports.getWorkers = async (req, res, next) => {
 // @access  Public
 exports.createWorker = async (req, res, next) => {
   try {
-    const worker = await Worker.create(req.body);
+    let worker = await Worker.create(req.body);
+    worker = await worker.populate('primaryRole secondaryRole tertiaryRole');
     res.status(201).json({ success: true, data: worker });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
