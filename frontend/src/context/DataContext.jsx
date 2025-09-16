@@ -304,6 +304,26 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const deleteAssignment = async (id) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await api.deleteAssignment(id);
+      if (res.ok) {
+        await refreshData(); // Using refreshData to ensure weeklyHours are recalculated
+        toast.success("Turno eliminado correctamente.");
+      } else {
+        const data = await res.json();
+        toast.error(`Error al eliminar el turno: ${data.error}`);
+      }
+    } catch (e) {
+      setError(e.message);
+      toast.error(`Error al eliminar el turno: ${e.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const exportToPDF = () => {
     if (Object.keys(schedule).length === 0) {
       toast.warn('Primero debes generar un horario para poder exportarlo.');
@@ -403,6 +423,7 @@ export const DataProvider = ({ children }) => {
     updateAssignment,
     swapAssignments,
     createAssignment,
+    deleteAssignment, // <-- Add this
     user, // Expose user
     setUser, // Expose setUser
   };

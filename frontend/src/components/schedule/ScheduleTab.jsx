@@ -6,7 +6,7 @@ import { Calendar, FileDown, MessageCircle, AlertTriangle, PlusCircle } from 'lu
 
 const ScheduleTab = () => {
   const { schedule, roles, workers, dailyStaffConfig, generateSchedule, exportToPDF, exportToExcel, weeklyHours, isLoading, updateAssignment,
-swapAssignments, createAssignment, user } = useContext(DataContext);
+swapAssignments, createAssignment, deleteAssignment, user } = useContext(DataContext);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
@@ -154,6 +154,7 @@ truncate text-center w-full hover:bg-gray-200 flex items-center justify-center g
           onClose={handleCloseModals}
           onSave={handleReassignSave}
           onSwap={handleSwapSave}
+          onDelete={deleteAssignment}
         />
       )}
       {isAddModalOpen && (

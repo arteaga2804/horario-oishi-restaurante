@@ -57,6 +57,7 @@ export const createAssignment = (assignment) => fetchWithAuth(`${API_URL}/schedu
     method: 'POST',
     body: JSON.stringify(assignment)
 });
+export const deleteAssignment = (id) => fetchWithAuth(`${API_URL}/schedule/${id}`, { method: 'DELETE' });
 
 // Config API calls
 export const getDailyStaffConfig = () => fetchWithAuth(`${API_URL}/config`);

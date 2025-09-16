@@ -20,7 +20,16 @@ exports.getSchedule = async (req, res, next) => {
     const weekNumber = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
     const weekId = `${now.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
 
-    const assignments = await Assignment.find({ weekId: weekId }).populate('worker').populate('role');
+    const assignments = await Assignment.find({ weekId: weekId })
+      .populate('role')
+      .populate({
+        path: 'worker',
+        populate: {
+          path: 'primaryRole secondaryRole tertiaryRole',
+          model: 'Role'
+        }
+      });
+      
     res.status(200).json({ success: true, count: assignments.length, data: assignments });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
@@ -71,27 +80,56 @@ exports.generateSchedule = async (req, res, next) => {
     const cjRole = roles.find(r => r.code === 'CJ');
 
     if (!cjRole) {
-        return res.status(400).json({ 
-            success: false, 
-            error: "El rol obligatorio 'CJ' debe estar definido." 
+        return res.status(400).json({
+            success: false,
+            error: "El rol obligatorio 'CJ' debe estar definido."
         });
     }
 
+    const primaryCashiers = workers.filter(w => w.primaryRole?._id.toString() === cjRole._id.toString());
+    const backupCashiers = workers.filter(w => w.primaryRole?._id.toString() !== cjRole._id.toString() && (w.secondaryRole?._id.toString() === cjRole._id.toString() || w.tertiaryRole?._id.toString() === cjRole._id.toString()));
+
     for (let day = 0; day < 7; day++) {
         for (const shift of ['opening', 'closing']) {
-            const cjWorker = workers.find(w =>
-                !w.daysOff.includes(day) &&
-                (workerHours[w._id] + hoursByShift[shift]) <= w.weeklyHours &&
-                [w.primaryRole?._id.toString(), w.secondaryRole?._id.toString(), w.tertiaryRole?._id.toString()].includes(cjRole._id.toString()) &&
-                !newSchedule[day][shift].some(a => a.worker.toString() === w._id.toString())
-            );
+            // Check if a cashier is already assigned
+            if (newSchedule[day][shift].some(a => a.role.toString() === cjRole._id.toString())) {
+                continue;
+            }
 
-            if (cjWorker) {
-                newSchedule[day][shift].push({
-                    worker: cjWorker._id, role: cjRole._id,
-                    workerName: cjWorker.name, roleName: cjRole.name, roleCode: cjRole.code, color: cjRole.color
-                });
-                workerHours[cjWorker._id] += hoursByShift[shift];
+            let assignedCashier = false;
+
+            // Try to assign a primary cashier first
+            for (const worker of primaryCashiers) {
+                const isAvailable = !worker.daysOff.includes(day) &&
+                                  (workerHours[worker._id] + hoursByShift[shift]) <= worker.weeklyHours &&
+                                  !newSchedule[day][shift].some(a => a.worker.toString() === worker._id.toString());
+                if (isAvailable) {
+                    newSchedule[day][shift].push({
+                        worker: worker._id, role: cjRole._id,
+                        workerName: worker.name, roleName: cjRole.name, roleCode: cjRole.code, color: cjRole.color
+                    });
+                    workerHours[worker._id] += hoursByShift[shift];
+                    assignedCashier = true;
+                    break;
+                }
+            }
+
+            if (assignedCashier) continue;
+
+            // If no primary cashier was available, try backup cashiers
+            for (const worker of backupCashiers) {
+                const isAvailable = !worker.daysOff.includes(day) &&
+                                  (workerHours[worker._id] + hoursByShift[shift]) <= worker.weeklyHours &&
+                                  !newSchedule[day][shift].some(a => a.worker.toString() === worker._id.toString());
+                if (isAvailable) {
+                    newSchedule[day][shift].push({
+                        worker: worker._id, role: cjRole._id,
+                        workerName: worker.name, roleName: cjRole.name, roleCode: cjRole.code, color: cjRole.color
+                    });
+                    workerHours[worker._id] += hoursByShift[shift];
+                    assignedCashier = true;
+                    break;
+                }
             }
         }
     }
@@ -238,19 +276,7 @@ exports.generateSchedule = async (req, res, next) => {
                         if (assigned) break;
                     }
 
-                    // Fallback if no role-qualified worker was found
-                    if (!assigned && potentialWorkers.length > 0) {
-                        const fallbackWorker = potentialWorkers[0];
-                        const fallbackRole = neededRoles[0];
-                        if (fallbackWorker && fallbackRole) {
-                             newSchedule[day][shift].push({
-                                worker: fallbackWorker._id, role: fallbackRole._id,
-                                workerName: fallbackWorker.name, roleName: fallbackRole.name, roleCode: fallbackRole.code, color: fallbackRole.color
-                            });
-                            workerHours[fallbackWorker._id] += hoursByShift[shift];
-                            assigned = true;
-                        }
-                    }
+                    
 
                     if (!assigned) {
                         break; 
@@ -344,6 +370,21 @@ exports.createAssignment = async (req, res, next) => {
   try {
     const assignment = await Assignment.create(req.body);
     res.status(201).json({ success: true, data: assignment });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+// @desc    Delete a single assignment
+// @route   DELETE /api/schedule/:id
+// @access  Admin
+exports.deleteAssignment = async (req, res, next) => {
+  try {
+    const assignment = await Assignment.findByIdAndDelete(req.params.id);
+    if (!assignment) {
+      return res.status(404).json({ success: false, error: 'No assignment found' });
+    }
+    res.status(200).json({ success: true, data: {} });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
   }
