@@ -55,6 +55,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
+app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/workers', require('./routes/workers.routes'));
 app.use('/api/roles', require('./routes/roles.routes'));
 app.use('/api/schedule', require('./routes/schedule.routes'));

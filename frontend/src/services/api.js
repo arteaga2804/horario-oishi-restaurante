@@ -66,6 +66,11 @@ export const updateDailyStaffConfig = (config) => fetchWithAuth(`${API_URL}/conf
     body: JSON.stringify(config)
 });
 
+// Dashboard API calls
+export const getDashboardSummary = (startDate, endDate) => {
+    return fetchWithAuth(`${API_URL}/dashboard/summary?startDate=${startDate}&endDate=${endDate}`);
+};
+
 // Auth API calls
 export const registerUser = (userData) => fetch(`${API_URL}/auth/register`, {
     method: 'POST',

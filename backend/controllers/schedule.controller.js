@@ -49,6 +49,13 @@ exports.generateSchedule = async (req, res, next) => {
     const weekNumber = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
     const weekId = `${now.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
 
+    // --- NEW: Date calculation setup ---
+    const today = new Date();
+    const currentDayOfWeek = today.getDay(); // 0=Sunday
+    const sundayOfThisWeek = new Date(today);
+    sundayOfThisWeek.setDate(today.getDate() - currentDayOfWeek);
+    sundayOfThisWeek.setHours(0, 0, 0, 0);
+
     const workers = await Worker.find().populate('primaryRole secondaryRole tertiaryRole');
     const roles = await Role.find();
     const configDoc = await Config.findOne();
@@ -274,10 +281,16 @@ exports.generateSchedule = async (req, res, next) => {
     for (const dayIndex in newSchedule) {
       for (const shiftType of ['opening', 'closing']) {
         for (const assignment of newSchedule[dayIndex][shiftType]) {
+          
+          // --- NEW: Calculate assignment date ---
+          const assignmentDate = new Date(sundayOfThisWeek);
+          assignmentDate.setDate(sundayOfThisWeek.getDate() + parseInt(dayIndex));
+
           assignmentsToSave.push({
             worker: assignment.worker,
             role: assignment.role,
             day: parseInt(dayIndex),
+            date: assignmentDate, // Add date
             shift: shiftType,
             weekId: weekId,
           });

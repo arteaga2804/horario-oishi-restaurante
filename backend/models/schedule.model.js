@@ -5,6 +5,10 @@ const AssignmentSchema = new mongoose.Schema({
     type: Number, // 0=Domingo, 1=Lunes, etc.
     required: true,
   },
+  date: {
+    type: Date,
+    required: true,
+  },
   shift: {
     type: String,
     enum: ['opening', 'closing'],
@@ -27,7 +31,7 @@ const AssignmentSchema = new mongoose.Schema({
   }
 });
 
-// To prevent a worker from being assigned to the same shift twice
-AssignmentSchema.index({ day: 1, shift: 1, worker: 1, weekId: 1 }, { unique: true });
+// To prevent a worker from being assigned to the same shift twice on the same date
+AssignmentSchema.index({ date: 1, shift: 1, worker: 1 }, { unique: true });
 
 module.exports = mongoose.model('Assignment', AssignmentSchema);

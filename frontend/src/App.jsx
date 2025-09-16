@@ -4,20 +4,20 @@ import WorkersTab from './components/workers/WorkersTab';
 import RolesTab from './components/roles/RolesTab';
 import ConfigTab from './components/config/ConfigTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
+import DashboardTab from './components/dashboard/DashboardTab'; // Import DashboardTab
 import LoginPage from './components/auth/LoginPage';
-import RegisterPage from './components/auth/RegisterPage'; // Import the new page
+import RegisterPage from './components/auth/RegisterPage';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { Users, Settings, Calendar, Clock, LogOut, RefreshCw } from 'lucide-react';
+import { Users, Settings, Calendar, Clock, LogOut, RefreshCw, LayoutDashboard } from 'lucide-react'; // Import LayoutDashboard
 import { DataContext } from './context/DataContext';
-
-import { getMe } from './services/api'; // Import getMe
+import { getMe } from './services/api';
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState('workers');
-  const [authView, setAuthView] = useState('login'); // 'login' or 'register'
-  const { refreshData, setUser, user } = useContext(DataContext); // Get user from context
+  const [authView, setAuthView] = useState('login');
+  const { refreshData, setUser, user } = useContext(DataContext);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -30,11 +30,9 @@ const App = () => {
             setUser(userData.data);
             setIsAuthenticated(true);
           } else {
-            // Token is invalid or expired
             localStorage.removeItem('token');
           }
         } catch (error) {
-          // Server is down or other network error
           localStorage.removeItem('token');
         }
       };
@@ -50,8 +48,8 @@ const App = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setIsAuthenticated(false);
-    setUser(null); // Clear user state
-    setAuthView('login'); // Default to login view on logout
+    setUser(null);
+    setAuthView('login');
   };
 
   if (!isAuthenticated) {
@@ -67,6 +65,11 @@ const App = () => {
     schedule: { label: 'Horarios', icon: Clock, component: <ScheduleTab /> },
   };
 
+  // Add admin/manager only tabs
+  if (user && (user.role === 'admin' || user.role === 'manager')) {
+    TABS.dashboard = { label: 'Dashboard', icon: LayoutDashboard, component: <DashboardTab /> };
+  }
+  
   // Add admin-only tabs
   if (user && user.role === 'admin') {
     TABS.config = { label: 'Configuración', icon: Calendar, component: <ConfigTab /> };
@@ -114,7 +117,7 @@ const App = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow-lg p-6">
-          {TABS[activeTab].component}
+          {TABS[activeTab] ? TABS[activeTab].component : <div>Cargando...</div>}
         </div>
       </div>
       <ToastContainer position="bottom-right" autoClose={3000} hideProgressBar={false} newestOnTop={false} closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
