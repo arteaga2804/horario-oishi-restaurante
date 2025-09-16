@@ -59,6 +59,7 @@ const App = () => {
     return <RegisterPage onNavigateToLogin={() => setAuthView('login')} />;
   }
 
+  console.log('User object:', user);
   const TABS = {
     workers: { label: 'Trabajadores', icon: Users, component: <WorkersTab /> },
     roles: { label: 'Roles', icon: Settings, component: <RolesTab /> },
