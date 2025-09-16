@@ -195,27 +195,7 @@ exports.generateSchedule = async (req, res, next) => {
         for (let day = 0; day < 7; day++) {
             if (worker.daysOff.includes(day)) continue;
 
-            // 1 día de 10h (abrir + cerrar el mismo día)
-            if (!tenHourAssigned) {
-                const canAssignOpening = newSchedule[day].opening.length < dailyStaffConfig[day].opening;
-                const canAssignClosing = newSchedule[day].closing.length < dailyStaffConfig[day].closing;
-                const isAlreadyAssigned = newSchedule[day].opening.some(a => a.worker.toString() === worker._id.toString()) || newSchedule[day].closing.some(a => a.worker.toString() === worker._id.toString());
-
-                if (canAssignOpening && canAssignClosing && !isAlreadyAssigned && (workerHours[worker._id] + 10) <= 26) {
-                    const roleToAssign = getRoleByIdOrCode(roles, worker.primaryRole);
-
-                    if(roleToAssign){
-                        newSchedule[day].opening.push({ worker: worker._id, role: roleToAssign._id,
-                            workerName: worker.name, roleName: roleToAssign.name, roleCode: roleToAssign.code, color: roleToAssign.color });
-                        newSchedule[day].closing.push({ worker: worker._id, role: roleToAssign._id,
-                            workerName: worker.name, roleName: roleToAssign.name, roleCode: roleToAssign.code, color: roleToAssign.color });
-
-                        workerHours[worker._id] += 10;
-                        tenHourAssigned = true;
-                        continue;
-                    }
-                }
-            }
+            
 
             // 4 días de 4h
             if (fourHourDays < 4) {
@@ -250,7 +230,10 @@ exports.generateSchedule = async (req, res, next) => {
                         if (assignedWorkerIds.has(w._id.toString())) return false;
                         if ((workerHours[w._id] + hoursForThisShift) > w.weeklyHours) return false;
                         
-                        // RELAXED: Allow any worker type to fill gaps if needed.
+                        // New logic here
+                        if (shift === 'opening' && w.contractType === 'Part Time Noche') return false;
+                        if (shift === 'closing' && w.contractType === 'Part Time Dia') return false;
+
                         return true;
                     }).sort((a, b) => (workerHours[a._id] / a.weeklyHours) - (workerHours[b._id] / b.weeklyHours));
 
