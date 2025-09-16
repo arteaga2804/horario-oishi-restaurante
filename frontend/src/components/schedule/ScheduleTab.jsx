@@ -38,8 +38,8 @@ swapAssignments, createAssignment, deleteAssignment, user } = useContext(DataCon
     setAddingToSlot(null);
   };
 
-  const handleReassignSave = (assignmentId, newWorkerId) => {
-    updateAssignment(assignmentId, newWorkerId);
+  const handleModalSave = (assignmentId, updates) => {
+    updateAssignment(assignmentId, updates);
   };
 
   const handleSwapSave = (assignmentA_id, assignmentB_id) => {
@@ -152,7 +152,7 @@ truncate text-center w-full hover:bg-gray-200 flex items-center justify-center g
         <EditAssignmentModal
           assignment={editingAssignment}
           onClose={handleCloseModals}
-          onSave={handleReassignSave}
+          onSave={handleModalSave}
           onSwap={handleSwapSave}
           onDelete={deleteAssignment}
         />

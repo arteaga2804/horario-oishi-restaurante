@@ -250,14 +250,14 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const updateAssignment = async (assignmentId, newWorkerId) => {
+  const updateAssignment = async (assignmentId, updates) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await api.updateAssignment(assignmentId, { worker: newWorkerId });
+      const res = await api.updateAssignment(assignmentId, updates);
       const data = await res.json();
       if (data.success) {
-        await refreshData();
+        await refreshData(); // Still using refreshData to be safe with hour calculations
         toast.success("Turno actualizado correctamente.");
       } else {
         toast.error(`Error al actualizar el turno: ${data.error}`);
@@ -265,6 +265,8 @@ export const DataProvider = ({ children }) => {
     } catch (e) {
       setError(e.message);
       toast.error(`Error al actualizar el turno: ${e.message}`);
+    } finally {
+        setIsLoading(false);
     }
   };
 

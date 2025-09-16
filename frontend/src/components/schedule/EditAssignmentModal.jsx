@@ -1,22 +1,22 @@
 import React, { useState, useContext } from 'react';
 import { DataContext } from '../../context/DataContext';
-import { Trash2 } from 'lucide-react'; // Import trash icon
+import { Trash2 } from 'lucide-react';
 
 const EditAssignmentModal = ({ assignment, onClose, onSave, onSwap, onDelete }) => {
   const { workers, schedule } = useContext(DataContext);
-  const [mode, setMode] = useState('reassign'); // 'reassign', 'swap', or 'delete'
+  const [mode, setMode] = useState('reassign');
   const [selectedWorkerId, setSelectedWorkerId] = useState(assignment.worker?._id);
+  const [selectedRoleId, setSelectedRoleId] = useState(assignment.role?._id);
   const [selectedSwapTargetId, setSelectedSwapTargetId] = useState('');
 
   const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
-  // Flatten schedule for swap dropdown
   const allAssignments = Object.values(schedule).flatMap(day => [...day.opening, ...day.closing]);
   const swapCandidates = allAssignments.filter(a => a._id !== assignment._id);
 
   const handleSave = () => {
     if (mode === 'reassign') {
-      onSave(assignment._id, selectedWorkerId);
+      onSave(assignment._id, { worker: selectedWorkerId, role: selectedRoleId });
     } else if (mode === 'swap') {
       if (selectedSwapTargetId) {
         onSwap(assignment._id, selectedSwapTargetId);
@@ -30,6 +30,12 @@ const EditAssignmentModal = ({ assignment, onClose, onSave, onSwap, onDelete }) 
     onClose();
   };
 
+  const workerRoles = [
+    assignment.worker?.primaryRole,
+    assignment.worker?.secondaryRole,
+    assignment.worker?.tertiaryRole,
+  ].filter(Boolean); // Filter out null/undefined roles
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg">
@@ -38,7 +44,21 @@ const EditAssignmentModal = ({ assignment, onClose, onSave, onSwap, onDelete }) 
         <div className="space-y-2 mb-4 p-4 bg-gray-50 rounded-lg">
           <div><span className="font-semibold">Día:</span> {daysOfWeek[assignment.day]}</div>
           <div><span className="font-semibold">Turno:</span> {assignment.shift === 'opening' ? 'Apertura' : 'Cierre'}</div>
-          <div><span className="font-semibold">Rol:</span> {assignment.role?.name}</div>
+          
+          {/* Role as a dropdown */}
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Rol:</span>
+            <select 
+              value={selectedRoleId} 
+              onChange={(e) => setSelectedRoleId(e.target.value)}
+              className="p-1 border rounded-lg bg-white"
+            >
+              {workerRoles.map(role => (
+                <option key={role._id} value={role._id}>{role.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div><span className="font-semibold">Trabajador Actual:</span> {assignment.worker?.name}</div>
           <div className="mt-2 pt-2 border-t">
             <span className="font-semibold text-sm text-gray-600">Roles del Trabajador:</span>
