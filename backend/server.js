@@ -53,6 +53,7 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
+app.options('*', cors(corsOptions)); // enable pre-flight for all routes
 app.use(cors(corsOptions));
 
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
