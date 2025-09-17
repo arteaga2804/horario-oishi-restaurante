@@ -1,35 +1,21 @@
-import React, { useState } from 'react';
-import * as api from '../../services/api';
-import { toast } from 'react-toastify';
+import React, { useContext } from 'react';
+import { DataContext } from '../../context/DataContext';
 
 const DashboardTab = () => {
-    const [summary, setSummary] = useState([]);
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+    const {
+        dashboardSummary,
+        dashboardStartDate,
+        dashboardEndDate,
+        generateDashboardReport,
+        isLoading
+    } = useContext(DataContext);
 
-    const handleGenerateReport = async () => {
-        if (!startDate || !endDate) {
-            toast.error('Por favor, selecciona una fecha de inicio y de fin.');
-            return;
-        }
-        setIsLoading(true);
-        try {
-            const res = await api.getDashboardSummary(startDate, endDate);
-            const data = await res.json();
-            if (data.success) {
-                setSummary(data.data);
-                if (data.data.length === 0) {
-                    toast.info('No se encontraron datos para el rango de fechas seleccionado.');
-                }
-            } else {
-                toast.error(`Error al generar el reporte: ${data.error}`);
-            }
-        } catch (err) {
-            toast.error(`Error de conexión: ${err.message}`);
-        } finally {
-            setIsLoading(false);
-        }
+    // Local state for inputs to avoid re-rendering the whole context on every keystroke
+    const [localStartDate, setLocalStartDate] = React.useState(dashboardStartDate);
+    const [localEndDate, setLocalEndDate] = React.useState(dashboardEndDate);
+
+    const handleGenerateReport = () => {
+        generateDashboardReport(localStartDate, localEndDate);
     };
 
     return (
@@ -42,8 +28,8 @@ const DashboardTab = () => {
                     <input
                         type="date"
                         id="start-date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
+                        value={localStartDate}
+                        onChange={(e) => setLocalStartDate(e.target.value)}
                         className="w-full p-2 border rounded-lg"
                     />
                 </div>
@@ -52,8 +38,8 @@ const DashboardTab = () => {
                     <input
                         type="date"
                         id="end-date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
+                        value={localEndDate}
+                        onChange={(e) => setLocalEndDate(e.target.value)}
                         className="w-full p-2 border rounded-lg"
                     />
                 </div>
@@ -66,7 +52,7 @@ const DashboardTab = () => {
                 </button>
             </div>
 
-            {summary.length > 0 && (
+            {dashboardSummary.length > 0 && (
                 <div className="overflow-x-auto">
                     <table className="w-full border-collapse border border-gray-300">
                         <thead>
@@ -80,7 +66,7 @@ const DashboardTab = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {summary.map(item => (
+                            {dashboardSummary.map(item => (
                                 <tr key={item.workerId} className="hover:bg-gray-50">
                                     <td className="border p-3">{item.workerName}</td>
                                     <td className="border p-3 text-center">{item.contractedHours}h</td>

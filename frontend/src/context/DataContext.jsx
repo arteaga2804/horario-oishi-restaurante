@@ -18,6 +18,12 @@ export const DataProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null); // Add user state
 
+  // State for Dashboard
+  const [dashboardSummary, setDashboardSummary] = useState([]);
+  const [dashboardStartDate, setDashboardStartDate] = useState('');
+  const [dashboardEndDate, setDashboardEndDate] = useState('');
+
+
   const fetchSchedule = async () => {
     try {
       const [scheduleRes, workersRes] = await Promise.all([api.getSchedule(), api.getWorkers()]);
@@ -401,6 +407,32 @@ export const DataProvider = ({ children }) => {
     toast.success("Excel exportado correctamente.");
   };
 
+  const generateDashboardReport = async (startDate, endDate) => {
+    if (!startDate || !endDate) {
+        toast.error('Por favor, selecciona una fecha de inicio y de fin.');
+        return;
+    }
+    setIsLoading(true);
+    try {
+        const res = await api.getDashboardSummary(startDate, endDate);
+        const data = await res.json();
+        if (data.success) {
+            setDashboardSummary(data.data);
+            setDashboardStartDate(startDate);
+            setDashboardEndDate(endDate);
+            if (data.data.length === 0) {
+                toast.info('No se encontraron datos para el rango de fechas seleccionado.');
+            }
+        } else {
+            toast.error(`Error al generar el reporte: ${data.error}`);
+        }
+    } catch (err) {
+        toast.error(`Error de conexión: ${err.message}`);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   const value = {
     workers,
     roles,
@@ -428,6 +460,12 @@ export const DataProvider = ({ children }) => {
     deleteAssignment, // <-- Add this
     user, // Expose user
     setUser, // Expose setUser
+
+    // Dashboard state and functions
+    dashboardSummary,
+    dashboardStartDate,
+    dashboardEndDate,
+    generateDashboardReport,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
