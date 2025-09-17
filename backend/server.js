@@ -46,16 +46,22 @@ app.use('/api/history', require('./routes/history.routes.js'));
 app.use('/api/config', require('./routes/config.routes'));
 app.use('/api/auth', require('./routes/auth.routes')); // Corrected path
 
-// Serve frontend static files in production
-if (process.env.NODE_ENV === 'production') {
-  // Set static folder
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+// --- Static file serving ---
+// This logic serves the built frontend files in production.
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
-  // Serve index.html for all other routes
-  app.get('*', (req, res) => 
-    res.sendFile(path.resolve(__dirname, '../frontend/dist', 'index.html'))
-  );
-}
+// For any other request that doesn't match an API route, serve the index.html file.
+app.get('*', (req, res) => {
+  const indexPath = path.resolve(__dirname, '../frontend/dist', 'index.html');
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      // Log the error on the server and send a 500 response
+      console.error('Error sending index.html:', err);
+      res.status(500).send('Could not find the frontend application entry point.');
+    }
+  });
+});
+// --- End of static file serving ---
 
 const PORT = process.env.PORT || 5000;
 
