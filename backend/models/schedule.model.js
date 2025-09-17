@@ -31,7 +31,4 @@ const AssignmentSchema = new mongoose.Schema({
   }
 });
 
-// To prevent a worker from being assigned to the same shift twice on the same date
-AssignmentSchema.index({ date: 1, shift: 1, worker: 1 }, { unique: true });
-
 module.exports = mongoose.model('Assignment', AssignmentSchema);

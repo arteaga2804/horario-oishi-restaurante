@@ -3,6 +3,7 @@ import { DataContext } from '../../context/DataContext';
 import EditAssignmentModal from './EditAssignmentModal';
 import AddAssignmentModal from './AddAssignmentModal';
 import { Calendar, FileDown, MessageCircle, AlertTriangle, PlusCircle } from 'lucide-react';
+import ScheduleGrid from './ScheduleGrid';
 
 const ScheduleTab = () => {
   const { schedule, roles, workers, dailyStaffConfig, generateSchedule, exportToPDF, exportToExcel, weeklyHours, isLoading, updateAssignment,
@@ -113,38 +114,7 @@ swapAssignments, createAssignment, deleteAssignment, user } = useContext(DataCon
     window.open(whatsappUrl, '_blank');
   };
 
-  const renderShift = (dayIndex, shiftType) => {
-    const assignments = schedule[dayIndex]?.[shiftType] || [];
-    const staffNeeded = dailyStaffConfig[dayIndex]?.[shiftType] || 0;
-    const emptySlots = staffNeeded - assignments.length;
-
-    return (
-      <div className="flex flex-col gap-1">
-        {assignments.map((assignment, idx) => (
-          <button
-            key={assignment._id || `assign-${idx}`}
-            onClick={() => handleAssignmentClick(assignment)}
-            className={`px-2 py-1 rounded text-white text-xs font-medium shadow-sm truncate text-left w-full ${user && user.role === 'admin' ? 
-'cursor-pointer' : 'cursor-default'}`}
-            style={{ backgroundColor: assignment.role?.color || '#888' }}
-            title={`${assignment.role?.name} - ${assignment.worker?.name}`}
-          >
-            <span className="font-bold">{assignment.role?.code}</span> - <span>{assignment.worker?.name} ({hoursByShift[shiftType]}h)</span>
-          </button>
-        ))}
-        {user && user.role === 'admin' && Array.from({ length: emptySlots > 0 ? emptySlots : 0 }).map((_, idx) => (
-            <button
-                key={`empty-${dayIndex}-${shiftType}-${idx}`}
-                onClick={() => handleAddClick(dayIndex, shiftType)}
-                className="px-2 py-1 rounded text-gray-500 bg-gray-100 border-dashed border-2 border-gray-300 text-xs font-medium shadow-sm
-truncate text-center w-full hover:bg-gray-200 flex items-center justify-center gap-1"
-            >
-                <PlusCircle size={12} /> Agregar
-            </button>
-        ))}
-      </div>
-    );
-  };
+  
 
   return (
     <div>
@@ -233,35 +203,14 @@ truncate text-center w-full hover:bg-gray-200 flex items-center justify-center g
       )}
 
       {Object.keys(schedule).length > 0 && (
-        <div id="schedule-calendar-view" className="bg-white rounded-lg shadow-inner p-4">
-          <div className="grid grid-cols-7 border-t border-l border-gray-300">
-            {daysOfWeek.map(day => (
-              <div key={day} className="text-center font-bold py-3 bg-gray-100 border-b border-r border-gray-300">{day}</div>
-            ))}
-
-            {daysOfWeek.map((day, index) => (
-              <div
-                key={index}
-                className={`relative min-h-[250px] border-b border-r border-gray-300 ${highDays.includes(index) ? 'bg-red-50' : 'bg-white'}`}
-              >
-                <div className="p-2">
-                  <div className="mb-4">
-                    <h5 className="font-semibold text-blue-600 mb-2">Apertura</h5>
-                    {renderShift(index, 'opening')}
-                  </div>
-
-                  <div>
-                    <h5 className="font-semibold text-red-600 mb-2">Cierre</h5>
-                    {renderShift(index, 'closing')}
-                  </div>
-                </div>
-                {highDays.includes(index) && (
-                  <span className="absolute top-2 right-2 px-2 py-1 bg-red-200 text-red-800 text-xs font-bold rounded">ALTO</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <ScheduleGrid 
+          schedule={schedule}
+          dailyStaffConfig={dailyStaffConfig}
+          highDays={highDays}
+          onAssignmentClick={handleAssignmentClick}
+          onAddClick={handleAddClick}
+          user={user}
+        />
       )}
 
       {Object.keys(weeklyHours).length > 0 && (

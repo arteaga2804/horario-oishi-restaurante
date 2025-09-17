@@ -1,4 +1,5 @@
 const Assignment = require('../models/schedule.model');
+const ScheduleHistory = require('../models/scheduleHistory.model');
 const Worker = require('../models/worker.model');
 const Role = require('../models/role.model');
 const Config = require('../models/config.model');
@@ -282,7 +283,6 @@ exports.generateSchedule = async (req, res, next) => {
       for (const shiftType of ['opening', 'closing']) {
         for (const assignment of newSchedule[dayIndex][shiftType]) {
           
-          // --- NEW: Calculate assignment date ---
           const assignmentDate = new Date(sundayOfThisWeek);
           assignmentDate.setDate(sundayOfThisWeek.getDate() + parseInt(dayIndex));
 
@@ -298,12 +298,28 @@ exports.generateSchedule = async (req, res, next) => {
       }
     }
 
-    await Assignment.deleteMany({ weekId: weekId });
+    // Instead of deleting, we will create a new history record
     if (assignmentsToSave.length > 0) {
-        await Assignment.insertMany(assignmentsToSave);
+        const insertedAssignments = await Assignment.insertMany(assignmentsToSave, { ordered: false }).catch(err => {
+            // Ignore duplicate key errors if any, though we removed the main index
+            if (err.code === 11000) {
+                return err.results.filter(result => result.code !== 11000).map(op => op.op);
+            } 
+            throw err;
+        });
+
+        const insertedIds = insertedAssignments.map(a => a._id);
+
+        await ScheduleHistory.create({
+            weekId,
+            generatedBy: req.user.id,
+            assignments: insertedIds,
+            dailyStaffConfig: dailyStaffConfig, // Snapshot of config
+            weeklyHours: workerHours, // Snapshot of hours
+        });
     }
 
-    res.status(201).json({ success: true, message: 'Schedule generated successfully with new logic', data: assignmentsToSave, weeklyHours: workerHours });
+    res.status(201).json({ success: true, message: 'Schedule generated and recorded in history', data: assignmentsToSave, weeklyHours: workerHours });
 
   } catch (err) {
     console.error("Error generating schedule:", err);

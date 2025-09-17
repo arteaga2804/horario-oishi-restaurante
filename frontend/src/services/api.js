@@ -71,6 +71,10 @@ export const getDashboardSummary = (startDate, endDate) => {
     return fetchWithAuth(`${API_URL}/dashboard/summary?startDate=${startDate}&endDate=${endDate}`);
 };
 
+// History API calls
+export const getScheduleHistoryList = () => fetchWithAuth(`${API_URL}/history`);
+export const getScheduleHistoryById = (id) => fetchWithAuth(`${API_URL}/history/${id}`);
+
 // Auth API calls
 export const registerUser = (userData) => fetch(`${API_URL}/auth/register`, {
     method: 'POST',

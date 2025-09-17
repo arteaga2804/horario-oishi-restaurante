@@ -60,6 +60,7 @@ app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/workers', require('./routes/workers.routes'));
 app.use('/api/roles', require('./routes/roles.routes'));
 app.use('/api/schedule', require('./routes/schedule.routes'));
+app.use('/api/history', require('./routes/history.routes.js'));
 app.use('/api/config', require('./routes/config.routes'));
 app.use('/api/auth', require('./routes/auth.routes')); // Corrected path
 
