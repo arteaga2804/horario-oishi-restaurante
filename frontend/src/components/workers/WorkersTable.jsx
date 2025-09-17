@@ -1,8 +1,8 @@
 import React, { useContext } from 'react';
 import { DataContext } from '../../context/DataContext';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, NotebookText } from 'lucide-react';
 
-      const WorkersTable = ({ onEdit }) => {
+      const WorkersTable = ({ onEdit, onOpenNotes }) => {
         const { workers, removeWorker, user } = useContext(DataContext);
         const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -35,12 +35,21 @@ import { Pencil, Trash2 } from 'lucide-react';
                           <button
                             onClick={() => onEdit(worker)}
                             className="p-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                            title="Editar trabajador"
                           >
                             <Pencil size={16} />
                           </button>
                           <button
+                            onClick={() => onOpenNotes(worker)}
+                            className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            title="Ver/Editar notas"
+                          >
+                            <NotebookText size={16} />
+                          </button>
+                          <button
                             onClick={() => removeWorker(worker._id)}
                             className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
+                            title="Eliminar trabajador"
                           >
                             <Trash2 size={16} />
                           </button>

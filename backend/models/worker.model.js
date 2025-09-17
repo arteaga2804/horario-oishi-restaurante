@@ -35,6 +35,10 @@ const WorkerSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Role',
   },
+  notes: {
+    type: String,
+    default: '',
+  },
 });
 
 module.exports = mongoose.model('Worker', WorkerSchema);

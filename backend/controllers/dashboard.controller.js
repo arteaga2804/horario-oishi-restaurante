@@ -36,9 +36,10 @@ exports.getSummary = async (req, res, next) => {
                 $group: {
                     _id: '$workerInfo._id',
                     workerName: { $first: '$workerInfo.name' },
-                    contractedHours: { $first: '$workerInfo.weeklyHours' }, // Note: This is weekly, dashboard might need monthly
-                    scheduledHours: { $sum: { $cond: [ { $eq: ['$shift', 'opening'] }, 6, 4 ] } },
-                    shifts: { $push: '$shift' }
+                    contractedHours: { $first: '$workerInfo.weeklyHours' },
+                    scheduledHours: { $sum: { $cond: [{ $eq: ['$shift', 'opening'] }, 6, 4] } },
+                    openingShifts: { $sum: { $cond: [{ $eq: ['$shift', 'opening'] }, 1, 0] } },
+                    closingShifts: { $sum: { $cond: [{ $eq: ['$shift', 'closing'] }, 1, 0] } }
                 }
             },
             {
@@ -49,23 +50,15 @@ exports.getSummary = async (req, res, next) => {
                     contractedHours: 1,
                     scheduledHours: 1,
                     overtimeHours: {
-                        $cond: { 
-                            if: { $gt: [ "$scheduledHours", "$contractedHours" ] }, 
-                            then: { $subtract: [ "$scheduledHours", "$contractedHours" ] }, 
-                            else: 0 
+                        $cond: {
+                            if: { $gt: ["$scheduledHours", "$contractedHours"] },
+                            then: { $subtract: ["$scheduledHours", "$contractedHours"] },
+                            else: 0
                         }
                     },
                     shiftDistribution: {
-                        opening: {
-                            $size: {
-                                $filter: { input: "$shifts", as: "shift", cond: { $eq: [ "$$shift", "opening" ] } }
-                            }
-                        },
-                        closing: {
-                            $size: {
-                                $filter: { input: "$shifts", as: "shift", cond: { $eq: [ "$$shift", "closing" ] } }
-                            }
-                        }
+                        opening: '$openingShifts',
+                        closing: '$closingShifts'
                     }
                 }
             }

@@ -3,15 +3,29 @@ import WorkerForm from './WorkerForm';
 import WorkersTable from './WorkersTable';
 import { DataContext } from '../../context/DataContext';
 import { Plus, Shuffle, CalendarOff } from 'lucide-react';
+import NotesModal from './NotesModal';
 
 const WorkersTab = () => {
   const { addWorker, updateWorkerData, assignRandomRoles, assignRandomDaysOff, user } = useContext(DataContext);
   const [editingWorker, setEditingWorker] = useState(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
+  const [notesModalWorker, setNotesModalWorker] = useState(null);
 
   const handleEdit = (worker) => {
     setEditingWorker(worker);
     setIsFormVisible(true);
+  };
+
+  const handleOpenNotes = (worker) => {
+    setNotesModalWorker(worker);
+  };
+
+  const handleCloseNotes = () => {
+    setNotesModalWorker(null);
+  };
+
+  const handleSaveNotes = (workerId, updatedData) => {
+    updateWorkerData(workerId, updatedData);
   };
 
   const handleAddNew = () => {
@@ -72,7 +86,15 @@ const WorkersTab = () => {
         />
       )}
       
-      <WorkersTable onEdit={handleEdit} />
+      <WorkersTable onEdit={handleEdit} onOpenNotes={handleOpenNotes} />
+
+      {notesModalWorker && (
+        <NotesModal 
+          worker={notesModalWorker}
+          onSave={handleSaveNotes}
+          onClose={handleCloseNotes}
+        />
+      )}
     </div>
   );
 };
