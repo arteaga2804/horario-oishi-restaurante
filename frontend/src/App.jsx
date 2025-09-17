@@ -4,13 +4,13 @@ import WorkersTab from './components/workers/WorkersTab';
 import RolesTab from './components/roles/RolesTab';
 import ConfigTab from './components/config/ConfigTab';
 import ScheduleTab from './components/schedule/ScheduleTab';
-import DashboardTab from './components/dashboard/DashboardTab'; // Import DashboardTab
+import DashboardTab from './components/dashboard/DashboardTab';
 import HistoryTab from './components/history/HistoryTab';
 import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { Users, Settings, Calendar, Clock, LogOut, RefreshCw, LayoutDashboard, History } from 'lucide-react'; // Import LayoutDashboard
+import { Users, Settings, Calendar, Clock, LogOut, RefreshCw, LayoutDashboard, History } from 'lucide-react';
 import { DataContext } from './context/DataContext';
 import { getMe } from './services/api';
 
@@ -54,11 +54,19 @@ const App = () => {
   };
 
   if (!isAuthenticated) {
+    if (authView === 'login') {
+      return <LoginPage onLogin={handleLogin} onNavigateToRegister={() => setAuthView('register')} />;
+    }
+    return <RegisterPage onNavigateToLogin={() => setAuthView('login')} />;
+  }
+
   const TABS = {
     workers: { label: 'Trabajadores', icon: Users, component: <WorkersTab /> },
     roles: { label: 'Roles', icon: Settings, component: <RolesTab /> },
     schedule: { label: 'Horarios', icon: Clock, component: <ScheduleTab /> },
   };
+
+  console.log('DEBUG: User object before rendering tabs:', user);
 
   // Add admin/manager only tabs
   if (user && (user.role === 'admin' || user.role === 'manager')) {
