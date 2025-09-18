@@ -22,7 +22,7 @@ const RegisterPage = ({ onNavigateToLogin }) => {
     }
 
     try {
-      const res = await registerUser({ username, password, role: 'admin' });
+      const res = await registerUser({ username, password, role: 'viewer' });
       const data = await res.json();
       
       if (data.success) {
