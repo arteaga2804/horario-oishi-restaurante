@@ -23,8 +23,8 @@ exports.getSummary = async (req, res, next) => {
                         {
                             $match: {
                                 date: {
-                                    $gte: new Date(startDate),
-                                    $lte: new Date(endDate),
+                                    $gte: new Date(`${startDate}T00:00:00.000Z`),
+                                    $lte: new Date(`${endDate}T23:59:59.999Z`),
                                 }
                             }
                         }
