@@ -12,48 +12,62 @@ exports.getSummary = async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Please provide a start and end date.' });
         }
 
-        const summary = await Assignment.aggregate([
-            {
-                $match: {
-                    date: {
-                        $gte: new Date(startDate),
-                        $lte: new Date(endDate),
-                    }
-                }
-            },
+        const summary = await Worker.aggregate([
             {
                 $lookup: {
-                    from: 'workers',
-                    localField: 'worker',
-                    foreignField: '_id',
-                    as: 'workerInfo'
+                    from: 'assignments',
+                    localField: '_id',
+                    foreignField: 'worker',
+                    // Filter assignments by date range within the lookup pipeline
+                    pipeline: [
+                        {
+                            $match: {
+                                date: {
+                                    $gte: new Date(startDate),
+                                    $lte: new Date(endDate),
+                                }
+                            }
+                        }
+                    ],
+                    as: 'assignments'
                 }
             },
             {
-                $unwind: '$workerInfo'
-            },
-            {
-                $group: {
-                    _id: '$workerInfo._id',
-                    workerName: { $first: '$workerInfo.name' },
-                    contractedHours: { $first: '$workerInfo.weeklyHours' },
-                    scheduledHours: { $sum: { $cond: [{ $eq: ['$shift', 'opening'] }, 6, 4] } },
-                    openingShifts: { $sum: { $cond: [{ $eq: ['$shift', 'opening'] }, 1, 0] } },
-                    closingShifts: { $sum: { $cond: [{ $eq: ['$shift', 'closing'] }, 1, 0] } }
+                $project: {
+                    name: 1,
+                    weeklyHours: 1,
+                    // Pre-calculate shift counts for clarity
+                    openingShifts: {
+                        $size: {
+                            $filter: { input: "$assignments", as: "shift", cond: { $eq: [ "$shift.shift", "opening" ] } }
+                        }
+                    },
+                    closingShifts: {
+                        $size: {
+                            $filter: { input: "$assignments", as: "shift", cond: { $eq: [ "$shift.shift", "closing" ] } }
+                        }
+                    }
                 }
             },
             {
                 $project: {
                     _id: 0,
                     workerId: '$_id',
-                    workerName: 1,
-                    contractedHours: 1,
-                    scheduledHours: 1,
+                    workerName: '$name',
+                    contractedHours: '$weeklyHours',
+                    scheduledHours: { $add: [ { $multiply: ["$openingShifts", 6] }, { $multiply: ["$closingShifts", 4] } ] },
                     overtimeHours: {
-                        $cond: {
-                            if: { $gt: ["$scheduledHours", "$contractedHours"] },
-                            then: { $subtract: ["$scheduledHours", "$contractedHours"] },
-                            else: 0
+                        $let: {
+                            vars: {
+                                totalHours: { $add: [ { $multiply: ["$openingShifts", 6] }, { $multiply: ["$closingShifts", 4] } ] }
+                            },
+                            in: {
+                                $cond: {
+                                    if: { $gt: [ "$totalHours", "$weeklyHours" ] },
+                                    then: { $subtract: [ "$totalHours", "$weeklyHours" ] },
+                                    else: 0
+                                }
+                            }
                         }
                     },
                     shiftDistribution: {
@@ -61,6 +75,9 @@ exports.getSummary = async (req, res, next) => {
                         closing: '$closingShifts'
                     }
                 }
+            },
+            {
+                $sort: { workerName: 1 }
             }
         ]);
 
