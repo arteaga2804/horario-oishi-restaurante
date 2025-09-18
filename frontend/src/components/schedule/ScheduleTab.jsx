@@ -48,13 +48,25 @@ swapAssignments, createAssignment, deleteAssignment, user } = useContext(DataCon
   };
 
   const handleAddSave = (newAssignment) => {
+    // --- Calculate weekId ---
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1);
     const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
     const weekNumber = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
     const weekId = `${now.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
 
-    createAssignment({ ...newAssignment, weekId });
+    // --- Calculate specific date ---
+    const today = new Date();
+    const currentDayOfWeek = today.getDay(); // 0=Sunday
+    const sundayOfThisWeek = new Date(today);
+    sundayOfThisWeek.setDate(today.getDate() - currentDayOfWeek);
+    sundayOfThisWeek.setHours(0, 0, 0, 0);
+    
+    const assignmentDate = new Date(sundayOfThisWeek);
+    assignmentDate.setDate(sundayOfThisWeek.getDate() + newAssignment.day);
+
+    // --- Call createAssignment with all required fields ---
+    createAssignment({ ...newAssignment, weekId, date: assignmentDate });
   };
 
   const validateCoverage = () => {
