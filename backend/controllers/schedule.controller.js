@@ -42,6 +42,7 @@ exports.getSchedule = async (req, res, next) => {
       
     res.status(200).json({ success: true, count: assignments.length, data: assignments });
   } catch (err) {
+    console.error('Error in getSchedule:', err);
     res.status(400).json({ success: false, error: err.message });
   }
 };
