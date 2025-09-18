@@ -300,16 +300,13 @@ exports.generateSchedule = async (req, res, next) => {
 
     // Instead of deleting, we will create a new history record
     if (assignmentsToSave.length > 0) {
-        const insertedAssignments = await Assignment.insertMany(assignmentsToSave, { ordered: false }).catch(err => {
-            // Ignore duplicate key errors if any, though we removed the main index
-            if (err.code === 11000) {
-                return err.results.filter(result => result.code !== 11000).map(op => op.op);
-            } 
-            throw err;
-        });
+        // Insert the new assignments
+        const insertedAssignments = await Assignment.insertMany(assignmentsToSave);
 
+        // Get the IDs of the newly created assignments
         const insertedIds = insertedAssignments.map(a => a._id);
 
+        // Create a history record pointing to these new assignments
         await ScheduleHistory.create({
             weekId,
             generatedBy: req.user.id,
