@@ -1,4 +1,5 @@
 const ScheduleHistory = require('../models/scheduleHistory.model');
+const Assignment = require('../models/schedule.model');
 
 // @desc    Get all schedule history records (metadata only)
 // @route   GET /api/history
@@ -39,6 +40,31 @@ exports.getScheduleHistoryById = async (req, res, next) => {
     }
 
     res.status(200).json({ success: true, data: historyRecord });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// @desc    Delete a schedule history record and its associated assignments
+// @route   DELETE /api/history/:id
+// @access  Admin
+exports.deleteScheduleHistory = async (req, res, next) => {
+  try {
+    const historyRecord = await ScheduleHistory.findById(req.params.id);
+
+    if (!historyRecord) {
+      return res.status(404).json({ success: false, error: 'History record not found' });
+    }
+
+    // Delete all assignments linked to this history record
+    if (historyRecord.assignments && historyRecord.assignments.length > 0) {
+      await Assignment.deleteMany({ _id: { $in: historyRecord.assignments } });
+    }
+
+    // Delete the history record itself
+    await historyRecord.deleteOne();
+
+    res.status(200).json({ success: true, data: {} });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

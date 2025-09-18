@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import * as api from '../../services/api';
 import { toast } from 'react-toastify';
 import ScheduleGrid from '../schedule/ScheduleGrid';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 
 const HistoryTab = () => {
     const [historyList, setHistoryList] = useState([]);
@@ -12,6 +12,23 @@ const HistoryTab = () => {
     useEffect(() => {
         fetchHistoryList();
     }, []);
+
+    const handleDeleteHistory = async (historyId) => {
+        if (window.confirm('¿Estás seguro de que quieres eliminar este registro del historial? Esta acción no se puede deshacer.')) {
+            try {
+                const res = await api.deleteScheduleHistory(historyId);
+                if (res.ok) {
+                    toast.success('Registro del historial eliminado correctamente.');
+                    setHistoryList(prevList => prevList.filter(item => item._id !== historyId));
+                } else {
+                    const data = await res.json();
+                    toast.error(`Error al eliminar el historial: ${data.error}`);
+                }
+            } catch (err) {
+                toast.error(`Error de conexión: ${err.message}`);
+            }
+        }
+    };
 
     const fetchHistoryList = async () => {
         setIsLoading(true);
@@ -93,12 +110,21 @@ const HistoryTab = () => {
                                 Generado por <span className="font-medium">{item.generatedBy?.username}</span> el {new Date(item.generationDate).toLocaleString()}
                             </p>
                         </div>
-                        <button 
-                            onClick={() => handleSelectHistory(item._id)}
-                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                        >
-                            Ver Detalle
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => handleSelectHistory(item._id)}
+                                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                            >
+                                Ver Detalle
+                            </button>
+                            <button 
+                                onClick={() => handleDeleteHistory(item._id)}
+                                className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                                title="Eliminar registro"
+                            >
+                                <Trash2 size={20} />
+                            </button>
+                        </div>
                     </div>
                 ))}
                  {historyList.length === 0 && !isLoading && (

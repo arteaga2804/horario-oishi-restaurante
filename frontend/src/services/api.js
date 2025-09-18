@@ -74,6 +74,7 @@ export const getDashboardSummary = (startDate, endDate) => {
 // History API calls
 export const getScheduleHistoryList = () => fetchWithAuth(`${API_URL}/history`);
 export const getScheduleHistoryById = (id) => fetchWithAuth(`${API_URL}/history/${id}`);
+export const deleteScheduleHistory = (id) => fetchWithAuth(`${API_URL}/history/${id}`, { method: 'DELETE' });
 
 // Auth API calls
 export const registerUser = (userData) => fetch(`${API_URL}/auth/register`, {
