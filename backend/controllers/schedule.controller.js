@@ -386,14 +386,34 @@ exports.swapAssignments = async (req, res, next) => {
   }
 };
 
-// @desc    Create a single assignment
+// @desc    Create a single assignment and add it to the latest history record
 // @route   POST /api/schedule
-// @access  Public
+// @access  Admin
 exports.createAssignment = async (req, res, next) => {
   try {
+    // 1. Create the new assignment
     const assignment = await Assignment.create(req.body);
+
+    // 2. Find the latest history record for this weekId
+    const latestHistory = await ScheduleHistory.findOne({ weekId: req.body.weekId })
+      .sort({ generationDate: -1 });
+
+    // 3. If a history exists, add the new assignment to it
+    if (latestHistory) {
+      latestHistory.assignments.push(assignment._id);
+      await latestHistory.save();
+    } else {
+      // If no history exists for this week, create a new one for this single assignment.
+      await ScheduleHistory.create({
+        weekId: req.body.weekId,
+        generatedBy: req.user.id,
+        assignments: [assignment._id],
+      });
+    }
+
     res.status(201).json({ success: true, data: assignment });
   } catch (err) {
+    console.error("Error in createAssignment:", err);
     res.status(400).json({ success: false, error: err.message });
   }
 };
