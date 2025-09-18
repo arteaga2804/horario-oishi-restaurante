@@ -66,7 +66,7 @@ const App = () => {
     schedule: { label: 'Horarios', icon: Clock, component: <ScheduleTab /> },
   };
 
-  console.log('DEBUG: User object before rendering tabs:', user);
+  
 
   // Add admin/manager only tabs
   if (user && (user.role === 'admin' || user.role === 'manager')) {

@@ -9,27 +9,36 @@ const getRoleByIdOrCode = (roles, identifier) => {
   return roles.find(r => r._id.toString() === identifier || r.code === identifier);
 };
 
-// @desc    Get schedule for a week
+// @desc    Get schedule for a week (latest version for current week)
 // @route   GET /api/schedule
 // @access  Public
 exports.getSchedule = async (req, res, next) => {
   try {
-    // Calculate current weekId to filter by
+    let assignments = [];
+
+    // Default behavior: Get the LATEST schedule for the CURRENT week
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1);
     const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
     const weekNumber = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
     const weekId = `${now.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
 
-    const assignments = await Assignment.find({ weekId: weekId })
-      .populate('role')
+    const latestHistory = await ScheduleHistory.findOne({ weekId: weekId })
+      .sort({ generationDate: -1 }) // Get the most recent one
       .populate({
-        path: 'worker',
+        path: 'assignments',
         populate: {
-          path: 'primaryRole secondaryRole tertiaryRole',
-          model: 'Role'
+          path: 'worker role',
+          populate: {
+            path: 'primaryRole secondaryRole tertiaryRole',
+            model: 'Role'
+          }
         }
       });
+
+    if (latestHistory) {
+      assignments = latestHistory.assignments;
+    }
       
     res.status(200).json({ success: true, count: assignments.length, data: assignments });
   } catch (err) {
