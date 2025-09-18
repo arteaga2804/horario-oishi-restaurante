@@ -27,9 +27,17 @@ exports.getSchedule = async (req, res, next) => {
       .sort({ generationDate: -1 }) // Get the most recent one
       .populate({
         path: 'assignments',
-        populate: {
-          path: 'worker role'
-        }
+        populate: [
+          {
+            path: 'worker',
+            populate: [
+              { path: 'primaryRole' },
+              { path: 'secondaryRole' },
+              { path: 'tertiaryRole' }
+            ]
+          },
+          { path: 'role' }
+        ]
       });
 
     if (latestHistory) {
