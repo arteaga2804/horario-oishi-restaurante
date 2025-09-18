@@ -28,11 +28,7 @@ exports.getSchedule = async (req, res, next) => {
       .populate({
         path: 'assignments',
         populate: {
-          path: 'worker role',
-          populate: {
-            path: 'primaryRole secondaryRole tertiaryRole',
-            model: 'Role'
-          }
+          path: 'worker role'
         }
       });
 
