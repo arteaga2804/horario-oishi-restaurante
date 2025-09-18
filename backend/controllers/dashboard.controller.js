@@ -13,48 +13,53 @@ exports.getSummary = async (req, res, next) => {
         }
 
         const summary = await Worker.aggregate([
+            // 1. Get all workers and their assignments
             {
                 $lookup: {
                     from: 'assignments',
                     localField: '_id',
                     foreignField: 'worker',
-                    // Filter assignments by date range within the lookup pipeline
-                    pipeline: [
-                        {
-                            $match: {
-                                date: {
-                                    $gte: new Date(`${startDate}T00:00:00.000Z`),
-                                    $lte: new Date(`${endDate}T23:59:59.999Z`),
-                                }
-                            }
-                        }
-                    ],
                     as: 'assignments'
                 }
             },
+            // 2. Create a document for each assignment, but keep workers with no assignments
             {
-                $project: {
-                    name: 1,
-                    weeklyHours: 1,
-                    // Pre-calculate shift counts for clarity
-                    openingShifts: {
-                        $size: {
-                            $filter: { input: "$assignments", as: "shift", cond: { $eq: [ "$shift.shift", "opening" ] } }
-                        }
-                    },
-                    closingShifts: {
-                        $size: {
-                            $filter: { input: "$assignments", as: "shift", cond: { $eq: [ "$shift.shift", "closing" ] } }
-                        }
-                    }
+                $unwind: {
+                    path: '$assignments',
+                    preserveNullAndEmptyArrays: true
                 }
             },
+            // 3. Filter the assignments by date. Workers with no assignments will have a null date and will be kept.
+            {
+                $match: {
+                    $or: [
+                        { 
+                            'assignments.date': { 
+                                $gte: new Date(`${startDate}T00:00:00.000Z`), 
+                                $lte: new Date(`${endDate}T23:59:59.999Z`) 
+                            } 
+                        },
+                        { 'assignments.date': null }
+                    ]
+                }
+            },
+            // 4. Group by worker and calculate all metrics
+            {
+                $group: {
+                    _id: '$_id',
+                    workerName: { $first: '$name' },
+                    contractedHours: { $first: '$weeklyHours' },
+                    openingShifts: { $sum: { $cond: [{ $eq: ['$assignments.shift', 'opening'] }, 1, 0] } },
+                    closingShifts: { $sum: { $cond: [{ $eq: ['$assignments.shift', 'closing'] }, 1, 0] } }
+                }
+            },
+            // 5. Project the final calculated fields
             {
                 $project: {
                     _id: 0,
                     workerId: '$_id',
-                    workerName: '$name',
-                    contractedHours: '$weeklyHours',
+                    workerName: 1,
+                    contractedHours: 1,
                     scheduledHours: { $add: [ { $multiply: ["$openingShifts", 6] }, { $multiply: ["$closingShifts", 4] } ] },
                     overtimeHours: {
                         $let: {
@@ -63,8 +68,8 @@ exports.getSummary = async (req, res, next) => {
                             },
                             in: {
                                 $cond: {
-                                    if: { $gt: [ "$totalHours", "$weeklyHours" ] },
-                                    then: { $subtract: [ "$totalHours", "$weeklyHours" ] },
+                                    if: { $gt: [ "$totalHours", "$contractedHours" ] },
+                                    then: { $subtract: [ "$totalHours", "$contractedHours" ] },
                                     else: 0
                                 }
                             }
